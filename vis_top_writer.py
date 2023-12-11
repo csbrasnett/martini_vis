@@ -56,7 +56,7 @@ if __name__ == '__main__':
     for molname, block in ff.blocks.items():
         #delete the interactions which are not bonds
         for interaction_type in list(block.interactions):
-            if interaction_type != 'bonds' and interaction_type != 'constraints':
+            if interaction_type != 'bonds' and interaction_type != 'constraints' and interaction_type != 'pairs':
                     del block.interactions[interaction_type]
         # remove meta (ie. the #IFDEF FLEXIBLE) from the bonds
         for bond in block.interactions['bonds']:
@@ -68,6 +68,12 @@ if __name__ == '__main__':
         for bond in block.interactions['constraints']:
             if bond.meta:
                 block.remove_interaction('constraints', bond.atoms)
+
+        #rewrite pairs as bonds for visualisation
+        for bond in block.interactions['pairs']:
+            block.add_interaction('bonds', bond.atoms, bond.parameters[:2] + ['10000'])
+        
+        del block.interactions['pairs']
     
         #write out the molecule with an amended name - do not use for simulation!
         mol_out = block.to_molecule()
