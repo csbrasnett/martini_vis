@@ -52,11 +52,12 @@ if __name__ == '__main__':
     for i in d.keys():
         read_itp(d[i], ff)
     
-    #iterate over the molecules to make visualisation topologies (removing anything that isn't a bond)
+    #iterate over the molecules to make visualisation topologies 
+    keep = ['bonds', 'constraints', 'pairs', 'virtual_sitesn']
     for molname, block in ff.blocks.items():
         #delete the interactions which are not bonds
         for interaction_type in list(block.interactions):
-            if interaction_type != 'bonds' and interaction_type != 'constraints' and interaction_type != 'pairs':
+            if interaction_type not in keep:
                     del block.interactions[interaction_type]
         # remove meta (ie. the #IFDEF FLEXIBLE) from the bonds
         for bond in block.interactions['bonds']:
@@ -74,8 +75,19 @@ if __name__ == '__main__':
             block.add_interaction('bonds', bond.atoms, bond.parameters[:2] + ['10000'])
         
         del block.interactions['pairs']
-    
-        #write out the molecule with an amended name - do not use for simulation!
+
+        #make bonds between virtual sites n and each of the constructing atoms
+        for vs in block.interactions['virtual_sitesn']:
+            site = vs.atoms[0]
+            constructors = vs.atoms[1:]
+            for constructor in constructors:
+                # completely arbitrary parameters, the bond just needs to exist
+                block.add_interaction('bonds', [site, constructor],
+                                      ['1', '1', '10000'])
+        
+        del block.interactions['virtual_sitesn']
+
+        #write out the molecule with an amended name
         mol_out = block.to_molecule()
         mol_out.meta['moltype'] = molname+'_vis'
         
