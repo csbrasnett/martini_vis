@@ -53,7 +53,8 @@ if __name__ == '__main__':
         read_itp(d[i], ff)
     
     #iterate over the molecules to make visualisation topologies 
-    keep = ['bonds', 'constraints', 'pairs', 'virtual_sitesn']
+    keep = ['bonds', 'constraints', 'pairs', 'virtual_sitesn',
+            'virtual_sites2', 'virtual_sites3']
     for molname, block in ff.blocks.items():
         #delete the interactions which are not bonds
         for interaction_type in list(block.interactions):
@@ -76,16 +77,16 @@ if __name__ == '__main__':
         
         del block.interactions['pairs']
 
-        #make bonds between virtual sites n and each of the constructing atoms
-        for vs in block.interactions['virtual_sitesn']:
-            site = vs.atoms[0]
-            constructors = vs.atoms[1:]
-            for constructor in constructors:
-                # completely arbitrary parameters, the bond just needs to exist
-                block.add_interaction('bonds', [site, constructor],
-                                      ['1', '1', '10000'])
-        
-        del block.interactions['virtual_sitesn']
+        #make bonds between virtual sites and each of the constructing atoms
+        for vs_type in ['virtual_sitesn', 'virtual_sites2', 'virtual_sites3']:
+            for vs in block.interactions[vs_type]:
+                site = vs.atoms[0]
+                constructors = vs.atoms[1:]
+                for constructor in constructors:
+                    # completely arbitrary parameters, the bond just needs to exist
+                    block.add_interaction('bonds', [site, constructor],
+                                          ['1', '1', '10000'])        
+            del block.interactions[vs_type]
 
         #write out the molecule with an amended name
         mol_out = block.to_molecule()
