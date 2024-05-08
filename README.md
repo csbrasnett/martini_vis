@@ -2,6 +2,10 @@
 
 Scripts to help visualise coarse-grained martini topologies
 
+## Dependencies
+
+The only non-standard library used to run `vis_top_writer.py` is [Vermouth](https://github.com/marrink-lab/vermouth-martinize). Please ensure you have Vermouth installed in your Python environment before running the script.
+
 ## Usage
 
 1) Run `./vis_top_writer.py` with your .top file you used to run a simulation. This will produce:
