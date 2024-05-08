@@ -12,7 +12,7 @@ Scripts to help visualise coarse-grained martini topologies
 4) Load your visualisable topologies using `cg_bonds-v5 -top vis.top`.
 5) Visualise your simulation with bonds in Martini!
 
-# Notes on using `vis_top_writer.py`
+## Notes on using `vis_top_writer.py`
 
 We assume the input topology looks like something as follows:
 
