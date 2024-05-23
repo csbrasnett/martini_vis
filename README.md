@@ -2,17 +2,21 @@
 
 Scripts to help visualise coarse-grained martini topologies
 
+## Dependencies
+
+The only non-standard library used to run `vis_top_writer.py` is [Vermouth](https://github.com/marrink-lab/vermouth-martinize). Please ensure you have Vermouth installed in your Python environment before running the script.
+
 ## Usage
 
 1) Run `./vis_top_writer.py` with your .top file you used to run a simulation. This will produce:
     * edited *_vis.itp files for all the non-standard (e.g. water, ions) molecules in your system described in the input .top file.  
-    * `vis.top`, a new .top file for your system and the visualisable topologies.
+    * `vis.top`, a new .top file for your system and the visualisable topologies. `cg_bonds-v5.tcl` requires absolute paths to your itps, which is solved by running the script.
 2) Load your simulation into vmd.
 3) `source cg_bonds-v5.tcl` in vmd.
 4) Load your visualisable topologies using `cg_bonds-v5 -top vis.top`.
 5) Visualise your simulation with bonds in Martini!
 
-# Notes on using `vis_top_writer.py`
+## Notes on using `vis_top_writer.py`
 
 We assume the input topology looks like something as follows:
 
