@@ -25,14 +25,18 @@ if __name__ == '__main__':
            )
     
     parser = argparse.ArgumentParser(description=msg, formatter_class=RawTextHelpFormatter)
-    parser.add_argument("-p", type = str, help = 'input .top file used', default = 'topol.top')
-    parser.add_argument("-f", type = str,
-                        help = ('Gromacs .gro file for which to write a non-water index file. '
-                                'Equivalent to an index group of !W in gmx make_ndx. '
-                                'Giving this option will automatically exclude W from your output vis.topG')
+    parser.add_argument("-p", dest='topology', type=str, help='input .top file used', default='topol.top')
+    parser.add_argument("-f", dest='system', type=str,
+                        help=("Gromacs .gro file for which to write a non-water index file. "
+                              "Equivalent to an index group of !W in gmx make_ndx. "
+                              "Giving this option will automatically exclude W from your output vis.top")
+                        )
+    parser.add_argument("-s", default=True, action="store_false", dest='virtual_sites',
+                        help=("Don't write bonds between virtual sites and their constructing atoms. "
+                              " (Bonds are written by default. Specify this flag if you don't want them written.")
                         )
     args = parser.parse_args()
-    
+
     #get files in the present directory
     files = os.listdir(os.getcwd())
     
@@ -89,13 +93,14 @@ if __name__ == '__main__':
 
         #make bonds between virtual sites and each of the constructing atoms
         for vs_type in ['virtual_sitesn', 'virtual_sites2', 'virtual_sites3']:
-            for vs in block.interactions[vs_type]:
-                site = vs.atoms[0]
-                constructors = vs.atoms[1:]
-                for constructor in constructors:
-                    # completely arbitrary parameters, the bond just needs to exist
-                    block.add_interaction('bonds', [site, constructor],
-                                          ['1', '1', '10000'])        
+            if args.s:
+                for vs in block.interactions[vs_type]:
+                    site = vs.atoms[0]
+                    constructors = vs.atoms[1:]
+                    for constructor in constructors:
+                        # completely arbitrary parameters, the bond just needs to exist
+                        block.add_interaction('bonds', [site, constructor],
+                                              ['1', '1', '10000'])
             del block.interactions[vs_type]
 
         #write out the molecule with an amended name
