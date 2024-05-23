@@ -1,6 +1,14 @@
 # martini_vis
 
-Scripts to help visualise coarse-grained martini topologies
+Scripts to aid the visualisation of coarse-grained martini trajectories.
+
+Martini_vis centres on the `vis_top_writer.py` script, which uses [vermouth](https://github.com/marrink-lab/vermouth-martinize) to stably
+rewrite your input topology files as ones that can be used for visualisation in vmd.
+
+This builds on previous work that produced the `cg_bonds-v5.tcl` script, which reads martini topology information into vmd. At some point
+`cg_bonds-v5.tcl` wasn't working with the latest models, so I wrote a script that should sort everything out. 
+
+If the solution here isn't working for you, please open an issue!
 
 ## Dependencies
 
@@ -10,11 +18,14 @@ Please ensure you have Vermouth installed in your Python environment before runn
 ## Usage
 
 1) Run `./vis_top_writer.py` with your .top file you used to run a simulation. This will produce:
-    * edited *_vis.itp files for all the non-standard (e.g. water, ions) molecules in your system described in the input .top file.  
-    * `vis.top`, a new .top file for your system and the visualisable topologies. `cg_bonds-v5.tcl` requires absolute paths to your itps, which is solved by running the script.
-    * Optionally by providing the .gro file you plan to visualise, you can write an index file without containing your system without water to use in processing your trajectory. 
+   1) Edited *_vis.itp files for all the non-standard (e.g. water, ions) molecules in your system described in the input .top file.  
+      * NB. by default, virtual sites will be rewritten as "real", with bonds between the sites and their constructing atoms. 
+      To stop this, use the `-s` flag when running `vis_top_writer.py`.
+   2) `vis.top`, a new .top file for your system and the visualisable topologies. `cg_bonds-v5.tcl` requires absolute paths to your itps, which is solved by running the script.
+   3) Optionally by providing the .gro file you plan to visualise, you can write an index file without containing your system without water to use in processing your trajectory. 
    Something like `gmx trjconv -f traj_comp.xtc -s topol.tpr -n index.ndx -pbc mol -o vis.xtc` will write new trajectory using the index file provided. As there is only one index group,
-   no further interaction with `trjconv` is required. NB. if you use this option, then `vis.top` will not contain an entry for the waters in your system at all.
+   no further interaction with `trjconv` is required. 
+      * NB. if you use this option, then `vis.top` will not contain an entry for the waters in your system at all.
 2) Load your simulation into vmd.
 3) `source cg_bonds-v5.tcl` in vmd.
 4) Load your visualisable topologies using `cg_bonds-v5 -top vis.top`.
