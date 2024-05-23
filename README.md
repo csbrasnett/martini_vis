@@ -4,13 +4,17 @@ Scripts to help visualise coarse-grained martini topologies
 
 ## Dependencies
 
-The only non-standard library used to run `vis_top_writer.py` is [Vermouth](https://github.com/marrink-lab/vermouth-martinize). Please ensure you have Vermouth installed in your Python environment before running the script.
+The only non-standard library used to run `vis_top_writer.py` is [Vermouth](https://github.com/marrink-lab/vermouth-martinize). 
+Please ensure you have Vermouth installed in your Python environment before running the script.
 
 ## Usage
 
 1) Run `./vis_top_writer.py` with your .top file you used to run a simulation. This will produce:
     * edited *_vis.itp files for all the non-standard (e.g. water, ions) molecules in your system described in the input .top file.  
     * `vis.top`, a new .top file for your system and the visualisable topologies. `cg_bonds-v5.tcl` requires absolute paths to your itps, which is solved by running the script.
+    * Optionally by providing the .gro file you plan to visualise, you can write an index file without containing your system without water to use in processing your trajectory. 
+   Something like `gmx trjconv -f traj_comp.xtc -s topol.tpr -n index.ndx -pbc mol -o vis.xtc` will write new trajectory using the index file provided. As there is only one index group,
+   no further interaction with `trjconv` is required. NB. if you use this option, then `vis.top` will not contain an entry for the waters in your system at all.
 2) Load your simulation into vmd.
 3) `source cg_bonds-v5.tcl` in vmd.
 4) Load your visualisable topologies using `cg_bonds-v5 -top vis.top`.
@@ -18,6 +22,7 @@ The only non-standard library used to run `vis_top_writer.py` is [Vermouth](http
 
 ## Notes on using `vis_top_writer.py`
 
+### Input
 We assume the input topology looks like something as follows:
 
 ```
@@ -43,3 +48,34 @@ i.e. you have :
 2) a set of input topology files that are specific to your system, and __don't__ have "martini" anywhere in their names
 
 `vis_top_writer.py` will maintain things that are generic to martini systems (like molecules that are defined in set 1: water, ions, etc.) and will make visualisable topologies for anything it finds in set 2 (like your protein and other molecules)
+
+### Output
+
+Running `./vis_top_writer.py -p topol.top -f frame.gro` on the above system, together with a .gro file that you want an index file for
+will produce the following output:
+
+```
+#include "/absolute/path/to/file/martini_v3.0.0.itp"
+#include "/absolute/path/to/file/martini_v3.0.0_solvents_v1.itp"
+#include "/absolute/path/to/file/martini_v3.0.0_ions_v1.itp"
+#include "/absolute/path/to/file/my_protein_vis.itp"
+#include "/absolute/path/to/file/something_else_vis.itp"
+
+[ system ]
+system name
+
+[ molecules ]
+Protein_vis 10
+something_else_vis   10
+NA               10
+CL               10
+```
+So the differences are:
+1) The input topologies are:
+   * Now written with absolute paths to the directory they were found in
+   * For non-default martini topologies (ie. the molecules of interest in your system)
+   new visualisable topologies have been written and included
+2) The [ molecules ] directive of the file:
+   * Lists the new names of the visualising topologies
+   * No longer has an entry for the water in the system, because a water-less index file was written.
+
