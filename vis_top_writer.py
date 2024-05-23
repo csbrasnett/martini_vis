@@ -10,6 +10,8 @@ from vermouth.forcefield import ForceField
 import os
 import argparse
 from argparse import RawTextHelpFormatter
+from MDAnalysis import Universe
+from MDAnalysis.selections.gromacs import SelectionWriter
 
 if __name__ == '__main__':
     
@@ -23,7 +25,12 @@ if __name__ == '__main__':
            )
     
     parser = argparse.ArgumentParser(description=msg, formatter_class=RawTextHelpFormatter)
-    parser.add_argument("-p", type = str, help  = 'input .top file used', default = 'topol.top')
+    parser.add_argument("-p", type = str, help = 'input .top file used', default = 'topol.top')
+    parser.add_argument("-f", type = str,
+                        help = ('Gromacs .gro file for which to write a non-water index file. '
+                                'Equivalent to an index group of !W in gmx make_ndx. '
+                                'Giving this option will automatically exclude W from your output vis.topG')
+                        )
     args = parser.parse_args()
     
     #get files in the present directory
@@ -31,7 +38,9 @@ if __name__ == '__main__':
     
     #get the topology file
     top = os.getcwd() + f'/{args.p}'
-    
+
+    print(f"Reading input {args.p}")
+
     #read the topology file, find the header lines which are not core martini itps
     with open(top) as f:
         topol_lines = f.readlines()
@@ -55,6 +64,7 @@ if __name__ == '__main__':
     #iterate over the molecules to make visualisation topologies 
     keep = ['bonds', 'constraints', 'pairs', 'virtual_sitesn',
             'virtual_sites2', 'virtual_sites3']
+    print("Writing visualisable topology files")
     for molname, block in ff.blocks.items():
         #delete the interactions which are not bonds
         for interaction_type in list(block.interactions):
@@ -114,13 +124,32 @@ if __name__ == '__main__':
         if any(mol in i for mol in original_mols):
             topol_rest_vis.append(i.split()[0]+'_vis\t' + i.split()[1]+'\n')
         else:
-            topol_rest_vis.append(i)
-    
+            if len(i.split())>1:
+                if args.f and i.split()[0] == 'W':
+                    pass
+                else:
+                    topol_rest_vis.append(i)
+            else:
+                topol_rest_vis.append(i)
     #combine the sections of the vis.top and write it out.
     vis_topol = new_topol_head + topol_rest_vis
     
     with open('vis.top', 'w') as f:
         f.writelines(vis_topol)
-        
-    
+
+    if args.f:
+        #read the file, take the number of the line if it doesn't have water in
+        with open(f"{args.f}",'r') as file:
+            lines = file.readlines()
+        l = [j for (j,k) in enumerate(lines[2:-1], start = 1) if k[10:15].strip()!="W"]
+        #split the lines every 12th index as gromacs requires
+        lines_out = [l[x:x+12] for x in range(0, len(l),12)]
+
+        #write the index file
+        with open('index.ndx', 'w') as fout:
+            fout.write('[ not water ]\n')
+            for lineout in lines_out:
+                fout.write(' '.join(map(str, lineout))+' \n')
+
+    print('All done!')
 
