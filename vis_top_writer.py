@@ -79,23 +79,9 @@ if __name__ == '__main__':
         # this should then keep any constraints which don't have IFDEF statements
         # eg. alpha helices are described by constraints without these.
         # however, the remove_interactions function doesn't work atm.
-        for bond in block.interactions['constraints']:
-            if not bond.meta.get('ifndef'):
-                block.add_interaction('bonds', bond.atoms,
-                                      ['1', '1', '10000'])
-        del block.interactions['constraints']
-
-        # a = copy.copy(block.interactions['constraints'])
-        # for i in a:
-        #     print(i)
-        # for bond in block.interactions['constraints']:
-        #     if bond.meta.get('ifndef'):
-        #         print(bond)
-        #         block.remove_interaction('constraints', bond.atoms)
-        # print('\n')
-        # for bond in block.interactions['constraints']:
-        #     if bond.meta.get('ifndef'):
-        #         print(bond)
+        for bond in list(block.interactions['constraints']):
+            if bond.meta.get('ifndef'):
+                block.remove_interaction('constraints', bond.atoms)
 
         #rewrite pairs as bonds for visualisation
         for bond in block.interactions['pairs']:
