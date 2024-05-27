@@ -51,7 +51,7 @@ if __name__ == '__main__':
     parser.add_argument("-el", default=False, action="store_true", dest='elastic',
                         help="Write elastic network of input proteins to separate files"
                         )
-    parser.add_argument("-ef", default=700, dest='en_force',
+    parser.add_argument("-ef", default=700, dest='en_force', type=float,
                         help="Force constant used for elastic network. Default = 700, standard for Martini 3."
                         )
 
