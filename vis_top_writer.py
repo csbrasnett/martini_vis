@@ -11,6 +11,21 @@ import argparse
 from argparse import RawTextHelpFormatter
 import copy
 
+def en_remove(ff, molname, en_bonds):
+    for interaction_type in list(ff.blocks[molname].interactions):
+        del ff.blocks[molname].interactions[interaction_type]
+
+    for bond in en_bonds:
+        ff.blocks[block].add_interaction('bonds', bond.atoms, bond.parameters)
+    mol_out = ff.blocks[molname].to_molecule()
+    mol_out.meta['moltype'] = molname + '_en'
+
+    header = [f'Elastic network topology for {molname}', 'NOT FOR SIMULATIONS']
+
+    with open(molname + '_en.itp', 'w') as outfile:
+        write_molecule_itp(mol_out, outfile=outfile, header=header)
+
+
 if __name__ == '__main__':
     
     msg = ('Write out simplified molecule topologies to use cg_bonds-v5.tcl\n\n'
@@ -31,9 +46,20 @@ if __name__ == '__main__':
                         )
     parser.add_argument("-s", default=True, action="store_false", dest='virtual_sites',
                         help=("Don't write bonds between virtual sites and their constructing atoms. "
-                              " (Bonds are written by default. Specify this flag if you don't want them written.")
+                              " (Bonds are written by default. Specify this flag if you don't want them written.)")
                         )
+    parser.add_argument("-el", default=False, action="store_true", dest='elastic',
+                        help="Write elastic network of input proteins to separate files"
+                        )
+    parser.add_argument("-ef", default=700, dest='en_force',
+                        help="Force constant used for elastic network. Default = 700, standard for Martini 3."
+                        )
+
     args = parser.parse_args()
+
+    #assume user error and be forgiving
+    if args.en_force and not args.elastic:
+        args.elastic = True
 
     #get files in the present directory
     files = os.listdir(os.getcwd())
@@ -75,6 +101,14 @@ if __name__ == '__main__':
         # remove meta (ie. the #IFDEF FLEXIBLE) from the bonds
         for bond in block.interactions['bonds']:
             bond.meta.clear()
+        if args.elastic:
+            en_bonds = []
+            for bond in list(block.interactions['bonds']):
+                if abs(float(bond.parameters[2])-args.en_force)< 0.1:
+                    en_bonds.append(bond)
+                    block.remove_interaction('bonds', bond.atoms)
+            ff_copy = copy.deepcopy(ff)
+            en_remove(ff_copy, molname, en_bonds)
 
         # this should then keep any constraints which don't have IFDEF statements
         # eg. alpha helices are described by constraints without these.
