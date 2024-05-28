@@ -13,6 +13,24 @@ import copy
 from pathlib import Path
 
 def misc_file_reader(lines):
+    '''
+    Try to handle miscellaneous files which can't be read into the force field by read_itp
+
+    Parameters
+    ----------
+    lines: list
+        list of lines from the input .itp file
+
+
+    Returns
+    -------
+    defines: dict
+        dictionary of definition: parameters for bonded terms that have been externally defined
+    others: list
+        lines from an input itp that don't have #define in them
+
+    if others == lines, None is returned, because the input file doesn't contain anything interesting
+    '''
     defines = {i.split()[1]: i.split(';')[0].split()[2:5] for i in lines if '#define' in i}
     others = [line for line in lines if '#define' not in line]
     if others == lines:
@@ -88,19 +106,20 @@ def en_writer(ff, molname, en_bonds):
     with open(molname + '_en.itp', 'w') as outfile:
         write_molecule_itp(mol_out, outfile=outfile, header=header)
 
-def topol_writing(topol_lines, ext='vis', W_include = False):
+def topol_writing(topol_lines, ext='vis', W_include = None):
     '''
 
     Write new .top file based on the input one
 
     Parameters
     ----------
-    topol_core_itps: list
-        itp files #included in the input .top file with 'martini' in their names
-    topol_rest: list
-        itp files #included in the input .top file without 'martini' in their names
+    topol_lines: dict
+        lines from the input topology file split up into different keys, as per input_topol_reader
     ext: str
         the extension to use in looking for new file names to add to the output .top file
+    W_include
+        if W_include is not None (ie. args.system has been given something)
+        then the line for water is not written out in the .top file
 
     Returns
     -------
@@ -219,7 +238,7 @@ if __name__ == '__main__':
                               "Equivalent to an index group of !W in gmx make_ndx. "
                               "Giving this option will automatically exclude W from your output vis.top")
                         )
-    parser.add_argument("-s", default=True, action="store_false", dest='virtual_sites',
+    parser.add_argument("-vs", default=True, action="store_false", dest='virtual_sites',
                         help=("Don't write bonds between virtual sites and their constructing atoms. "
                               " (Bonds are written by default. Specify this flag if you don't want them written.)")
                         )
@@ -383,7 +402,7 @@ if __name__ == '__main__':
         topol_writing(topol_lines, 'go', W_include=args.system)
     topol_writing(topol_lines, W_include=args.system)
 
-    if args.system:
+    if args.system is not None:
         index_writer(args.system)
 
     print('All done!')
