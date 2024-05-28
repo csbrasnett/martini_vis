@@ -123,3 +123,22 @@ The vmd settings in each system should then be something like
 `not resname ION` for the whole protein in the first molecule, and `name BB and not resname protein` for the 
 elastic network specific molecule in the second. Play around to your heart's content. Either way, you should 
 now be able to see your protein as a joined-up molecule rather than a series of spheres.
+
+## What about my Gō network?
+
+Seeing your Gō network works in much the same way as seeing an elastic network. 
+Simply use the `-go` flag, and your Gō network bonds should be written out in a
+second itp that can be used to look at a second imposed molecule in vmd.
+
+By default, it's assumed the file will be called `go_nbparams.itp` as per the 
+latest version of martinize2, where the Gō parameters are calculated internally.
+If you're using a different version of the Gō model where this file is called something
+different, you can specify that with the `-gf` flag
+
+## Disclaimers
+
+This code's mainly been tested on relatively simple systems.
+It hasn't been checked for larger more complex systems with 
+big mixtures of lipids and proteins.
+
+If you find an error, please open an issue so it can be fixed!
