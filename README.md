@@ -139,6 +139,6 @@ different, you can specify that with the `-gf` flag
 
 This code's mainly been tested on relatively simple systems.
 It hasn't been checked for larger more complex systems with 
-big mixtures of lipids and proteins.
+big mixtures of lipids and proteins, so if you're looking at something big, it's likely there'll be an error.
 
 If you find an error, please open an issue so it can be fixed!
