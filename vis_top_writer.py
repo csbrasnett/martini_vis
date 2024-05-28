@@ -16,7 +16,7 @@ def en_remove(ff, molname, en_bonds):
         del ff.blocks[molname].interactions[interaction_type]
 
     for bond in en_bonds:
-        ff.blocks[block].add_interaction('bonds', bond.atoms, bond.parameters)
+        ff.blocks[molname].add_interaction('bonds', bond.atoms, bond.parameters)
     mol_out = ff.blocks[molname].to_molecule()
     mol_out.meta['moltype'] = molname + '_en'
 
@@ -104,7 +104,10 @@ if __name__ == '__main__':
         if args.elastic:
             en_bonds = []
             for bond in list(block.interactions['bonds']):
-                if abs(float(bond.parameters[2])-args.en_force)< 0.1:
+                cond0 = abs(float(bond.parameters[2])-args.en_force)<0.1 #elastic network proper
+                cond1 = abs(float(bond.parameters[1]) - 0.970)< 0.1 # long beta elastic
+                cond2 = abs(float(bond.parameters[1]) - 0.640)< 0.1 # short beta elastic
+                if any([cond0, cond1, cond2]):
                     en_bonds.append(bond)
                     block.remove_interaction('bonds', bond.atoms)
             ff_copy = copy.deepcopy(ff)
