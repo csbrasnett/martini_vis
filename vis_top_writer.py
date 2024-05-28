@@ -11,6 +11,15 @@ import argparse
 from argparse import RawTextHelpFormatter
 import copy
 from pathlib import Path
+
+def misc_file_reader(lines):
+    defines = {i.split()[1]: i.split(';')[0].split()[2:5] for i in lines if '#define' in i}
+    others = [line for line in lines if '#define' not in line]
+    if others == lines:
+        return None
+    else:
+        return defines, others
+
 def go_writer(ff, molname, go_bonds):
     '''
     write a go network only topology for a particular molecule
@@ -79,7 +88,7 @@ def en_writer(ff, molname, en_bonds):
     with open(molname + '_en.itp', 'w') as outfile:
         write_molecule_itp(mol_out, outfile=outfile, header=header)
 
-def topol_writing(topol_core_itps, topol_rest, ext='vis'):
+def topol_writing(topol_lines, ext='vis', W_include = False):
     '''
 
     Write new .top file based on the input one
@@ -97,11 +106,12 @@ def topol_writing(topol_core_itps, topol_rest, ext='vis'):
     -------
     None
     '''
-    # make a new header for the .top file to write the absolute paths
+    #this will write everything and is gross but it should work
+    #because everything will be included
     new_topol_head = []
-    for i in topol_core_itps:
+    # make a new header for the .top file to write the absolute paths
+    for i in topol_lines['core_itps']:
         new_topol_head.append(f'#include "{os.path.abspath(i)}"\n')
-
     # get the new vis files to write for the topology header
     vis_files = [i for i in os.listdir(os.getcwd()) if f'_{ext}' in i]
     for i in vis_files:
@@ -110,19 +120,13 @@ def topol_writing(topol_core_itps, topol_rest, ext='vis'):
     # correct the [ molecules ] directive of the top file to correct for the new molecule names.
     topol_rest_vis = []
     original_mols = [i.split(f'_{ext}')[0] for i in vis_files]
-    for i in topol_rest:
-        if any(mol in i for mol in original_mols):
-            topol_rest_vis.append(i.split()[0] + f'_{ext}\t' + i.split()[1] + '\n')
-        else:
-            if len(i.split()) > 1:
-                if args.system and i.split()[0] == 'W':
-                    pass
-                else:
-                    topol_rest_vis.append(i)
-            else:
-                topol_rest_vis.append(i)
+    if W_include is not None:
+        original_mols.remove('W')
+    for i in topol_lines['molecules']:
+        if any(mol in i['name'] for mol in original_mols):
+            topol_rest_vis.append(i['name'] + f'_{ext}\t' + i['n_mols'] + '\n')
     # combine the sections of the vis.top and write it out.
-    vis_topol = new_topol_head + topol_rest_vis
+    vis_topol = new_topol_head + topol_lines['system'] + topol_rest_vis
 
     with open(f'{ext}.top', 'w') as f:
         f.writelines(vis_topol)
@@ -160,6 +164,42 @@ def index_writer(system):
         fout.write('[ not water ]\n')
         for lineout in lines_out:
             fout.write(' '.join(map(str, lineout)) + ' \n')
+
+def input_topol_reader(file):
+
+    inclusions = []
+    molecules = []
+    system = []
+    go = []
+    #read the topology file, find the header lines which are not core martini itps
+    with open(file) as f:
+        mols = False
+        sys = False
+        for line in f.readlines():
+            if '#include' in line:
+                if 'go' not in line:
+                    inclusions.append(line.split('"')[1])
+                else:
+                    go.append(line.split('"')[1])
+            if mols == True:
+                molecules.append({'name': line.split()[0],
+                                  'n_mols': line.split()[1]})
+            if 'molecules' in line:
+                mols = True
+                sys = False
+                system.append(line)
+            if 'system' in line:
+                sys = True
+            if sys == True:
+                system.append(line)
+    topol_lines = {'core_itps': inclusions,
+                   'system': system,
+                   'molecules': molecules}
+
+    if len(go)>0:
+        topol_lines['go'] = go
+
+    return topol_lines
 
 if __name__ == '__main__':
     
@@ -203,40 +243,50 @@ if __name__ == '__main__':
     top = os.getcwd() + f'/{args.topology}'
 
     print(f"Reading input {args.topology}")
-
-    #read the topology file, find the header lines which are not core martini itps
-    with open(top) as f:
-        topol_lines = f.readlines()
-
-    topol_core_itps = [a.split('"')[1] for a in topol_lines if "martini" in a]
-    topol_rest = [a for a in topol_lines if "#include" not in a]
-    if not args.go:
-        topol_editable_itps = [a.split('"')[1] for a in topol_lines if "#include" in a and "martini" not in a]
-    else:
-        topol_editable_itps = [a.split('"')[1] for a in topol_lines if "#include" in a and "martini" not in a and "go" not in a]
-        topol_go_itps = [a.split('"')[1] for a in topol_lines if "go" in a]
+    topol_lines = input_topol_reader(top)
 
     #for each molecule in the system, read in the itp
     d = {}
-    for i,j in enumerate(topol_editable_itps):
+    for i,j in enumerate(topol_lines['core_itps']):
         with open(j) as f:
             d[i] = f.readlines()
 
     #read the molecules into the forcefield
     ff = ForceField('martini3001')
 
+    system_defines = {}
     for i,j in enumerate(d.keys()):
         try:
             read_itp(d[j], ff)
         except OSError:
-            print(f"Error reading {topol_editable_itps[i]}. Maybe you have a go model but didn't specify -go?")
-            pass
+            '''
+            if we can't read the file into the system directly, we have something that isn't strictly a molecule
+            most likely its the force field definition file (eg. martini_v3.0.0.itp) but we can't be sure
+            a common one is something with #defines in for generic molecule bonded terms
+            
+            
+            '''
+            misc_result = misc_file_reader(d[j])
+            if misc_result is None:
+                print(f"Error reading {topol_lines['core_itps'][i]}. Maybe you have a go model but didn't specify -go?")
+                pass
+            else:
+                #this means we've separated things out successfully and can read the actual itp content now
+                for key, value in misc_result[0].items():
+                    system_defines[key] = value
+                read_itp(misc_result[1], ff)
 
-    #iterate over the molecules to make visualisation topologies 
+    #iterate over the molecules to make visualisation topologies
     keep = ['bonds', 'constraints', 'pairs', 'virtual_sitesn',
             'virtual_sites2', 'virtual_sites3']
     print("Writing visualisable topology files")
     for molname, block in ff.blocks.items():
+        #write vis topols for molecules we're actually interested in
+        try:
+            assert molname in [i['name'] for i in topol_lines['molecules']]
+        except AssertionError:
+            continue
+
         #delete the interactions which are not bonds
         for interaction_type in list(block.interactions):
             if interaction_type not in keep:
@@ -249,6 +299,12 @@ if __name__ == '__main__':
             for bond in list(block.interactions['bonds']):
                 #these conditions are taken from the martini3001 forcefield, may cause upset in future
                 #TODO monitor these conditions for future force fields
+                #TODO work out how to insert the #defines statements into the molecule proper. Can't assign.
+                if len(bond.parameters) == 1:
+                    continue
+                    # bond.parameters = system_defines[bond.parameters[0]]
+                    # print(molname, bond.parameters, system_defines[bond.parameters[0]])
+
                 cond0 = abs(float(bond.parameters[2]) - args.en_force) < 0.1 #elastic network proper
                 cond1 = abs(float(bond.parameters[1]) - 0.970) < 0.1 # long beta elastic
                 cond2 = abs(float(bond.parameters[1]) - 0.640) < 0.1 # short beta elastic
@@ -268,7 +324,7 @@ if __name__ == '__main__':
         #rewrite pairs as bonds for visualisation
         for bond in block.interactions['pairs']:
             block.add_interaction('bonds', bond.atoms, bond.parameters[:2] + ['10000'])
-        
+
         del block.interactions['pairs']
 
         #make bonds between virtual sites and each of the constructing atoms
@@ -293,8 +349,8 @@ if __name__ == '__main__':
                             # completely arbitrary parameters, the bond just needs to exist
                             block.add_interaction('bonds', [site, constructor],
                                                   ['1', '1', '1000'])
-
-            del block.interactions[vs_type]
+            if block.interactions[vs_type]:
+                del block.interactions[vs_type]
 
         if args.go:
             if args.go_path:
@@ -322,10 +378,10 @@ if __name__ == '__main__':
             write_molecule_itp(mol_out, outfile=outfile, header = header)
 
     if args.elastic:
-        topol_writing(topol_core_itps, topol_rest, 'en')
+        topol_writing(topol_lines, 'en', W_include=args.system)
     if args.go:
-        topol_writing(topol_core_itps, topol_rest, 'go')
-    topol_writing(topol_core_itps, topol_rest)
+        topol_writing(topol_lines, 'go', W_include=args.system)
+    topol_writing(topol_lines, W_include=args.system)
 
     if args.system:
         index_writer(args.system)
