@@ -10,6 +10,7 @@ import os
 import argparse
 from argparse import RawTextHelpFormatter
 import copy
+from pathlib import Path
 def go_writer(ff, molname, go_bonds):
     '''
     write a go network only topology for a particular molecule
@@ -172,8 +173,8 @@ if __name__ == '__main__':
            )
     
     parser = argparse.ArgumentParser(description=msg, formatter_class=RawTextHelpFormatter)
-    parser.add_argument("-p", dest="topology", type=str, help="input .top file used", default="topol.top")
-    parser.add_argument("-f", dest="system", type=str,
+    parser.add_argument("-p", dest="topology", type=Path, help="input .top file used", default="topol.top")
+    parser.add_argument("-f", dest="system", type=Path,
                         help=("Gromacs .gro file for which to write a non-water index file. "
                               "Equivalent to an index group of !W in gmx make_ndx. "
                               "Giving this option will automatically exclude W from your output vis.top")
@@ -190,13 +191,10 @@ if __name__ == '__main__':
                         )
     parser.add_argument("-go", default=False, action="store_true",
                         help="Go network options")
+    parser.add_argument("-gf", type=Path, dest='go_path',
+                        help="Nonbonded parameter itp file for your go network")
 
     args = parser.parse_args()
-
-    #assume user error and be forgiving
-    if args.en_force and not args.elastic:
-        if not args.go:
-            args.elastic = True
 
     #get files in the present directory
     files = os.listdir(os.getcwd())
@@ -223,13 +221,17 @@ if __name__ == '__main__':
     for i,j in enumerate(topol_editable_itps):
         with open(j) as f:
             d[i] = f.readlines()
-    
+
     #read the molecules into the forcefield
     ff = ForceField('martini3001')
-    
-    for i in d.keys():
-        read_itp(d[i], ff)
-    
+
+    for i,j in enumerate(d.keys()):
+        try:
+            read_itp(d[j], ff)
+        except OSError:
+            print(f"Error reading {topol_editable_itps[i]}. Maybe you have a go model but didn't specify -go?")
+            pass
+
     #iterate over the molecules to make visualisation topologies 
     keep = ['bonds', 'constraints', 'pairs', 'virtual_sitesn',
             'virtual_sites2', 'virtual_sites3']
@@ -245,9 +247,11 @@ if __name__ == '__main__':
         if args.elastic:
             en_bonds = []
             for bond in list(block.interactions['bonds']):
-                cond0 = abs(float(bond.parameters[2])-args.en_force)<0.1 #elastic network proper
-                cond1 = abs(float(bond.parameters[1]) - 0.970)< 0.1 # long beta elastic
-                cond2 = abs(float(bond.parameters[1]) - 0.640)< 0.1 # short beta elastic
+                #these conditions are taken from the martini3001 forcefield, may cause upset in future
+                #TODO monitor these conditions for future force fields
+                cond0 = abs(float(bond.parameters[2]) - args.en_force) < 0.1 #elastic network proper
+                cond1 = abs(float(bond.parameters[1]) - 0.970) < 0.1 # long beta elastic
+                cond2 = abs(float(bond.parameters[1]) - 0.640) < 0.1 # short beta elastic
                 if any([cond0, cond1, cond2]):
                     en_bonds.append(bond)
                     block.remove_interaction('bonds', bond.atoms)
@@ -274,10 +278,8 @@ if __name__ == '__main__':
                 for vs in block.interactions[vs_type]:
                     site = vs.atoms[0]
                     constructors = vs.atoms[1:]
-                    for constructor in constructors:
-                        # completely arbitrary parameters, the bond just needs to exist
-                        block.add_interaction('bonds', [site, constructor],
-                                              ['1', '1', '10000'])
+                    #this avoids pointless bonds between a virtual site directly on top of
+                    #its singular constructing atom
                     if args.go:
                         #make a dictionary of atype: node index
                         #this is for later so the 'bond' can be drawn properly.
@@ -286,16 +288,27 @@ if __name__ == '__main__':
                         atype = block.nodes[site]['atype']
                         if aname == 'CA':
                             go_dict[atype] = site
+                    else:
+                        for constructor in constructors:
+                            # completely arbitrary parameters, the bond just needs to exist
+                            block.add_interaction('bonds', [site, constructor],
+                                                  ['1', '1', '1000'])
 
             del block.interactions[vs_type]
 
         if args.go:
-            if "go_nbparams.itp" not in topol_go_itps:
-                print('need go_nbparams.itp to use this')
-            with open("go_nbparams.itp", "r") as f:
+            if args.go_path:
+                go_nb_file = args.go_file
+            else:
+                go_nb_file = "go_nbparams.itp"
+
+            if not os.path.isfile(go_nb_file):
+                raise FileNotFoundError("Gō nonbonded itp does not exist. Specify using -gf")
+
+            with open(go_nb_file, "r") as f:
                 nb_lines = f.readlines()
             nb_lines = [line.split(';')[0].split(' ') for line in nb_lines if '[' not in line]
-            bonds_list = [(go_dict[i[0]], go_dict[i[1]], '1', i[3], '1000') for i in nb_lines]
+            bonds_list = [[go_dict[i[0]], go_dict[i[1]], '1', i[3], '1000'] for i in nb_lines]
             ff_go_copy = copy.deepcopy(ff)
             go_writer(ff_go_copy, molname, bonds_list)
 
@@ -308,11 +321,11 @@ if __name__ == '__main__':
         with open(molname+'_vis.itp', 'w') as outfile:
             write_molecule_itp(mol_out, outfile=outfile, header = header)
 
-    topol_writing(topol_core_itps, topol_rest)
     if args.elastic:
         topol_writing(topol_core_itps, topol_rest, 'en')
     if args.go:
         topol_writing(topol_core_itps, topol_rest, 'go')
+    topol_writing(topol_core_itps, topol_rest)
 
     if args.system:
         index_writer(args.system)
