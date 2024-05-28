@@ -12,11 +12,31 @@ from argparse import RawTextHelpFormatter
 import copy
 
 def en_remove(ff, molname, en_bonds):
+    '''
+    write an elastic network only topology for a particular molecule
+
+    Parameters
+    ----------
+    ff: vermouth forcefield
+        vermouth force field containing the input syste
+    molname: str
+        name of the molecule to separate out
+    en_bonds: list
+        list of elastic network bonds to write out
+
+    Returns
+    -------
+    None
+    '''
+    #remove all interactions from the molecule
     for interaction_type in list(ff.blocks[molname].interactions):
         del ff.blocks[molname].interactions[interaction_type]
 
+    #add the elastic network bonds back in
     for bond in en_bonds:
         ff.blocks[molname].add_interaction('bonds', bond.atoms, bond.parameters)
+
+    # write the file out
     mol_out = ff.blocks[molname].to_molecule()
     mol_out.meta['moltype'] = molname + '_en'
 
@@ -25,6 +45,87 @@ def en_remove(ff, molname, en_bonds):
     with open(molname + '_en.itp', 'w') as outfile:
         write_molecule_itp(mol_out, outfile=outfile, header=header)
 
+def topol_writing(topol_core_itps, topol_rest, ext='vis'):
+    '''
+
+    Write new .top file based on the input one
+
+    Parameters
+    ----------
+    topol_core_itps: list
+        itp files #included in the input .top file with 'martini' in their names
+    topol_rest: list
+        itp files #included in the input .top file without 'martini' in their names
+    ext: str
+        the extension to use in looking for new file names to add to the output .top file
+
+    Returns
+    -------
+    None
+    '''
+    # make a new header for the .top file to write the absolute paths
+    new_topol_head = []
+    for i in topol_core_itps:
+        new_topol_head.append(f'#include "{os.path.abspath(i)}"\n')
+
+    # get the new vis files to write for the topology header
+    vis_files = [i for i in os.listdir(os.getcwd()) if f'_{ext}' in i]
+    for i in vis_files:
+        new_topol_head.append(f'#include "{os.path.abspath(i)}"\n')
+
+    # correct the [ molecules ] directive of the top file to correct for the new molecule names.
+    topol_rest_vis = []
+    original_mols = [i.split(f'_{ext}')[0] for i in vis_files]
+    for i in topol_rest:
+        if any(mol in i for mol in original_mols):
+            topol_rest_vis.append(i.split()[0] + f'_{ext}\t' + i.split()[1] + '\n')
+        else:
+            if len(i.split()) > 1:
+                if args.system and i.split()[0] == 'W':
+                    pass
+                else:
+                    topol_rest_vis.append(i)
+            else:
+                topol_rest_vis.append(i)
+    # combine the sections of the vis.top and write it out.
+    vis_topol = new_topol_head + topol_rest_vis
+
+    with open(f'{ext}.top', 'w') as f:
+        f.writelines(vis_topol)
+
+def index_writer(system):
+    '''
+    Write a .ndx file for a system without water
+    Parameters
+    ----------
+    system: str
+        the .gro file to read and write the non-water index for
+
+    Returns
+    -------
+
+    '''
+    if os.path.splitext(system)[1]!='.gro':
+        raise TypeError('Must provide a file in .gro format')
+
+    print("Writing a waterless index file. Here're some helpful commands for reference:\n"
+          "\tgmx trjconv -f traj_comp.xtc -s topol.tpr -pbc mol -n index.ndx -e 0 -o vis.gro\n"
+          "\tgmx trjconv -f traj_comp.xtc -s topol.tpr -pbc mol -n index.ndx -o vis.xtc"
+          )
+
+    # read the file, take the number of the line if it doesn't have water in
+    with open(f"{system}", 'r') as file:
+        lines = file.readlines()
+    # this skips the header and footer of the file
+    l = [j for (j, k) in enumerate(lines[2:-1], start=1) if k[10:15].strip() != "W"]
+    # split the lines every 12th index as gromacs requires
+    lines_out = [l[x:x + 12] for x in range(0, len(l), 12)]
+
+    # write the index file
+    with open('index.ndx', 'w') as fout:
+        fout.write('[ not water ]\n')
+        for lineout in lines_out:
+            fout.write(' '.join(map(str, lineout)) + ' \n')
 
 if __name__ == '__main__':
     
@@ -146,53 +247,12 @@ if __name__ == '__main__':
         
         with open(molname+'_vis.itp', 'w') as outfile:
             write_molecule_itp(mol_out, outfile=outfile, header = header)
-    
-    #make a new header for the .top file to write the absolute paths
-    new_topol_head = []
-    for i in topol_core_itps:
-        new_topol_head.append(f'#include "{os.path.abspath(i)}"\n')
 
-    #get the new vis files to write for the topology header
-    vis_files = [i for i in os.listdir(os.getcwd()) if '_vis' in i]
-    for i in vis_files:
-        new_topol_head.append(f'#include "{os.path.abspath(i)}"\n')
-    
-    #correct the [ molecules ] directive of the top file to correct for the new molecule names.
-    topol_rest_vis = []
-    original_mols = [i.split('_vis')[0] for i in vis_files]
-    for i in topol_rest:
-        if any(mol in i for mol in original_mols):
-            topol_rest_vis.append(i.split()[0]+'_vis\t' + i.split()[1]+'\n')
-        else:
-            if len(i.split())>1:
-                if args.system and i.split()[0] == 'W':
-                    pass
-                else:
-                    topol_rest_vis.append(i)
-            else:
-                topol_rest_vis.append(i)
-    #combine the sections of the vis.top and write it out.
-    vis_topol = new_topol_head + topol_rest_vis
-    
-    with open('vis.top', 'w') as f:
-        f.writelines(vis_topol)
+    topol_writing(topol_core_itps, topol_rest)
+    if args.elastic:
+        topol_writing(topol_core_itps, topol_rest, 'en')
 
     if args.system:
-        print("Writing a waterless index file. Here're some helpful commands for reference:\n"
-              "\tgmx trjconv -f traj_comp.xtc -s topol.tpr -pbc mol -n index.ndx -e 0 -o vis.gro\n"
-              "\tgmx trjconv -f traj_comp.xtc -s topol.tpr -pbc mol -n index.ndx -o vis.xtc"
-              )
-        #read the file, take the number of the line if it doesn't have water in
-        with open(f"{args.system}",'r') as file:
-            lines = file.readlines()
-        #this skips the header and footer of the file
-        l = [j for (j,k) in enumerate(lines[2:-1], start = 1) if k[10:15].strip()!="W"]
-        #split the lines every 12th index as gromacs requires
-        lines_out = [l[x:x+12] for x in range(0, len(l),12)]
+        index_writer(args.system)
 
-        #write the index file
-        with open('index.ndx', 'w') as fout:
-            fout.write('[ not water ]\n')
-            for lineout in lines_out:
-                fout.write(' '.join(map(str, lineout))+' \n')
     print('All done!')
