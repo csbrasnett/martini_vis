@@ -10,8 +10,41 @@ import os
 import argparse
 from argparse import RawTextHelpFormatter
 import copy
+def go_writer(ff, molname, go_bonds):
+    '''
+    write a go network only topology for a particular molecule
 
-def en_remove(ff, molname, en_bonds):
+    Parameters
+    ----------
+    ff: vermouth forcefield
+        vermouth force field containing the input syste
+    molname: str
+        name of the molecule to separate out
+    go_bonds: list
+        list of go  bonds to write out
+
+    Returns
+    -------
+    None
+    '''
+    #remove all interactions from the molecule
+    for interaction_type in list(ff.blocks[molname].interactions):
+        del ff.blocks[molname].interactions[interaction_type]
+
+    #add the elastic network bonds back in
+    for bond in go_bonds:
+        ff.blocks[molname].add_interaction('bonds', [bond[0], bond[1]], list(bond[2:]))
+
+    # write the file out
+    mol_out = ff.blocks[molname].to_molecule()
+    mol_out.meta['moltype'] = molname + '_go'
+
+    header = [f'Elastic network topology for {molname}', 'NOT FOR SIMULATIONS']
+
+    with open(molname + '_go.itp', 'w') as outfile:
+        write_molecule_itp(mol_out, outfile=outfile, header=header)
+
+def en_writer(ff, molname, en_bonds):
     '''
     write an elastic network only topology for a particular molecule
 
@@ -155,12 +188,15 @@ if __name__ == '__main__':
     parser.add_argument("-ef", default=700, dest='en_force', type=float,
                         help="Force constant used for elastic network. Default = 700, standard for Martini 3."
                         )
+    parser.add_argument("-go", default=False, action="store_true",
+                        help="Go network options")
 
     args = parser.parse_args()
 
     #assume user error and be forgiving
     if args.en_force and not args.elastic:
-        args.elastic = True
+        if not args.go:
+            args.elastic = True
 
     #get files in the present directory
     files = os.listdir(os.getcwd())
@@ -173,11 +209,15 @@ if __name__ == '__main__':
     #read the topology file, find the header lines which are not core martini itps
     with open(top) as f:
         topol_lines = f.readlines()
-    
+
     topol_core_itps = [a.split('"')[1] for a in topol_lines if "martini" in a]
     topol_rest = [a for a in topol_lines if "#include" not in a]
-    topol_editable_itps = [a.split('"')[1] for a in topol_lines if "#include" in a and "martini" not in a]
-    
+    if not args.go:
+        topol_editable_itps = [a.split('"')[1] for a in topol_lines if "#include" in a and "martini" not in a]
+    else:
+        topol_editable_itps = [a.split('"')[1] for a in topol_lines if "#include" in a and "martini" not in a and "go" not in a]
+        topol_go_itps = [a.split('"')[1] for a in topol_lines if "go" in a]
+
     #for each molecule in the system, read in the itp
     d = {}
     for i,j in enumerate(topol_editable_itps):
@@ -211,8 +251,8 @@ if __name__ == '__main__':
                 if any([cond0, cond1, cond2]):
                     en_bonds.append(bond)
                     block.remove_interaction('bonds', bond.atoms)
-            ff_copy = copy.deepcopy(ff)
-            en_remove(ff_copy, molname, en_bonds)
+            ff_en_copy = copy.deepcopy(ff)
+            en_writer(ff_en_copy, molname, en_bonds)
 
         # this should then keep any constraints which don't have IFDEF statements
         # eg. alpha helices are described by constraints without these.
@@ -228,6 +268,7 @@ if __name__ == '__main__':
         del block.interactions['pairs']
 
         #make bonds between virtual sites and each of the constructing atoms
+        go_dict = {}
         for vs_type in ['virtual_sitesn', 'virtual_sites2', 'virtual_sites3']:
             if args.virtual_sites:
                 for vs in block.interactions[vs_type]:
@@ -237,20 +278,41 @@ if __name__ == '__main__':
                         # completely arbitrary parameters, the bond just needs to exist
                         block.add_interaction('bonds', [site, constructor],
                                               ['1', '1', '10000'])
+                    if args.go:
+                        #make a dictionary of atype: node index
+                        #this is for later so the 'bond' can be drawn properly.
+                        #assert that this site has the name CA to check its a go site and not another VS.
+                        aname = block.nodes[site]['atomname']
+                        atype = block.nodes[site]['atype']
+                        if aname == 'CA':
+                            go_dict[atype] = site
+
             del block.interactions[vs_type]
+
+        if args.go:
+            if "go_nbparams.itp" not in topol_go_itps:
+                print('need go_nbparams.itp to use this')
+            with open("go_nbparams.itp", "r") as f:
+                nb_lines = f.readlines()
+            nb_lines = [line.split(';')[0].split(' ') for line in nb_lines if '[' not in line]
+            bonds_list = [(go_dict[i[0]], go_dict[i[1]], '1', i[3], '1000') for i in nb_lines]
+            ff_go_copy = copy.deepcopy(ff)
+            go_writer(ff_go_copy, molname, bonds_list)
 
         #write out the molecule with an amended name
         mol_out = block.to_molecule()
         mol_out.meta['moltype'] = molname+'_vis'
-        
+
         header = [f'Visualisation topology for {molname}', 'NOT FOR SIMULATIONS']
-        
+
         with open(molname+'_vis.itp', 'w') as outfile:
             write_molecule_itp(mol_out, outfile=outfile, header = header)
 
     topol_writing(topol_core_itps, topol_rest)
     if args.elastic:
         topol_writing(topol_core_itps, topol_rest, 'en')
+    if args.go:
+        topol_writing(topol_core_itps, topol_rest, 'go')
 
     if args.system:
         index_writer(args.system)
