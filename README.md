@@ -3,7 +3,7 @@
 left to right: atomistic representation of the protein. 
 Martini representation of the protein overlaid on the atomistic one, showing the direct backbone and side chain.
 Martini representation of the protein overlaid on the atomistic one, showing all bonds, with the elastic network in black.
-Martini representation of the protein, showing all bonds.](/grain/chris/martini_vis/image.png "Visualising elastic networks")
+Martini representation of the protein, showing all bonds.](image.png "Visualising elastic networks")
 
 Scripts to aid the visualisation of coarse-grained martini trajectories.
 
