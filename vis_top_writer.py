@@ -11,6 +11,8 @@ import argparse
 from argparse import RawTextHelpFormatter
 import copy
 from pathlib import Path
+import networkx as nx
+
 
 def misc_file_reader(lines):
     '''
@@ -38,6 +40,7 @@ def misc_file_reader(lines):
     else:
         return defines, others
 
+
 def go_writer(ff, molname, go_bonds):
     '''
     write a go network only topology for a particular molecule
@@ -55,11 +58,11 @@ def go_writer(ff, molname, go_bonds):
     -------
     None
     '''
-    #remove all interactions from the molecule
+    # remove all interactions from the molecule
     for interaction_type in list(ff.blocks[molname].interactions):
         del ff.blocks[molname].interactions[interaction_type]
 
-    #add the elastic network bonds back in
+    # add the elastic network bonds back in
     for bond in go_bonds:
         ff.blocks[molname].add_interaction('bonds', [bond[0], bond[1]], list(bond[2:]))
 
@@ -71,6 +74,7 @@ def go_writer(ff, molname, go_bonds):
 
     with open(molname + '_go.itp', 'w') as outfile:
         write_molecule_itp(mol_out, outfile=outfile, header=header)
+
 
 def en_writer(ff, molname, en_bonds):
     '''
@@ -89,13 +93,92 @@ def en_writer(ff, molname, en_bonds):
     -------
     None
     '''
-    #remove all interactions from the molecule
+    # remove all interactions from the molecule
     for interaction_type in list(ff.blocks[molname].interactions):
         del ff.blocks[molname].interactions[interaction_type]
 
-    #add the elastic network bonds back in
+    # add the elastic network bonds back in
+    edges = []
     for bond in en_bonds:
+        edges.append(bond.atoms)
         ff.blocks[molname].add_interaction('bonds', bond.atoms, bond.parameters)
+
+    #make a graph, look at the degrees of the nodes
+    G = nx.Graph()
+    G.add_nodes_from(ff.blocks[molname].nodes)
+    G.add_edges_from(edges)
+    degrees = [G.degree[node] for node in G.nodes]
+    # handle the points where more EN bonds have been written than VMD can handle (12)
+    if any([i>12 for i in [G.degree[node] for node in G.nodes]]):
+
+        print(f"There are atoms in {molname} which have > 12 elastic network bonds."
+              " Some will be removed and recorded for posterity")
+
+        over_limit_ind = []
+        over_limit_num = []
+        for i, j in enumerate(degrees):
+            if j > 12:
+                over_limit_ind.append(i)
+                over_limit_num.append(j-12)
+
+        l0 = []
+        l1 = []
+        l2 = []
+        for interaction in ff.blocks[molname].interactions['bonds']:
+            cond0 = (interaction.atoms[0] in over_limit_ind)
+            cond1 = (interaction.atoms[1] in over_limit_ind)
+            if cond0 and not cond1:
+                l0.append([interaction, interaction.atoms[0]])
+            elif cond1 and not cond0:
+                l1.append([interaction, interaction.atoms[1]])
+            elif cond0 and cond1:
+                l2.append([interaction, interaction.atoms[0], interaction.atoms[1]])
+
+        X = [i[0] for i in l0]+[i[0] for i in l1]
+        Y = [i[1] for i in l0]+[i[1] for i in l1]
+        Z = [list(x) for x in sorted(zip(Y,X), key=lambda pair: pair[0])]
+
+        # make sure we have a consistent set of indices to remove edges from
+        s0 = set([x[0] for x in Z])
+        s1 = set(over_limit_ind)
+        assert s0.difference(s1) == s1.difference(s0)
+
+        removed = []
+        sorted_atoms = [x[0] for x in Z]
+        sorted_interactions = [x[1] for x in Z]
+        for index, value in enumerate(over_limit_ind):
+            inds = [i for i, x in enumerate(sorted_atoms) if x == value]
+            r_inds = iter(range(len(inds)))
+            target = over_limit_num[index]
+            target_interactions = [sorted_interactions[i] for i in inds]
+
+            while target > 0:
+                i = next(r_inds)
+                removed.append(target_interactions[i])
+                G.remove_edge(target_interactions[i].atoms[0],
+                              target_interactions[i].atoms[1]
+                              )
+                ff.blocks[molname].remove_interaction('bonds', target_interactions[i].atoms)
+                target -= 1
+
+    try:
+        assert not any([i > 12 for i in [G.degree[node] for node in G.nodes]])
+    except AssertionError:
+        print("Couldn't remove all bonds necessary, probably can't network in VMD")
+
+    with open(molname + '_surplus_en.txt', 'w') as extra_en:
+        extra_en.write(f'Elastic network bonds removed from {molname}_en.itp\n')
+        extra_en.write('This is for noting in visualisation, not for simulation\n\n')
+        extra_en.write(f'These bonds will be missing if you load {molname}_en.itp in vmd\n')
+        extra_en.write("having been present in your simulation. If you're inspecting your\n")
+        extra_en.write('elastic network because you suspect some error because of it, bear this in mind.\n')
+
+        extra_en.write('   i    j func b0 kb\n')
+
+        for i in removed:
+            extra_en.writelines(f'{i.atoms[0]:4d} {i.atoms[1]:4d} '+
+                                f'{i.parameters[0]:1s} {i.parameters[1]:5s} {i.parameters[2]:5s}'+
+                                '\n')
 
     # write the file out
     mol_out = ff.blocks[molname].to_molecule()
@@ -106,7 +189,8 @@ def en_writer(ff, molname, en_bonds):
     with open(molname + '_en.itp', 'w') as outfile:
         write_molecule_itp(mol_out, outfile=outfile, header=header)
 
-def topol_writing(topol_lines, ext='vis', W_include = None):
+
+def topol_writing(topol_lines, ext='vis', W_include=None):
     '''
 
     Write new .top file based on the input one
@@ -125,8 +209,8 @@ def topol_writing(topol_lines, ext='vis', W_include = None):
     -------
     None
     '''
-    #this will write everything and is gross but it should work
-    #because everything will be included
+    # this will write everything and is gross but it should work
+    # because everything will be included
     new_topol_head = []
     # make a new header for the .top file to write the absolute paths
     for i in topol_lines['core_itps']:
@@ -150,6 +234,7 @@ def topol_writing(topol_lines, ext='vis', W_include = None):
     with open(f'{ext}.top', 'w') as f:
         f.writelines(vis_topol)
 
+
 def index_writer(system):
     '''
     Write a .ndx file for a system without water
@@ -162,7 +247,7 @@ def index_writer(system):
     -------
 
     '''
-    if os.path.splitext(system)[1]!='.gro':
+    if os.path.splitext(system)[1] != '.gro':
         raise TypeError('Must provide a file in .gro format')
 
     print("Writing a waterless index file. Here're some helpful commands for reference:\n"
@@ -184,13 +269,13 @@ def index_writer(system):
         for lineout in lines_out:
             fout.write(' '.join(map(str, lineout)) + ' \n')
 
-def input_topol_reader(file):
 
+def input_topol_reader(file):
     inclusions = []
     molecules = []
     system = []
     go = []
-    #read the topology file, find the header lines which are not core martini itps
+    # read the topology file, find the header lines which are not core martini itps
     with open(file) as f:
         mols = False
         sys = False
@@ -215,13 +300,14 @@ def input_topol_reader(file):
                    'system': system,
                    'molecules': molecules}
 
-    if len(go)>0:
+    if len(go) > 0:
         topol_lines['go'] = go
 
     return topol_lines
 
+
 if __name__ == '__main__':
-    
+
     msg = ('Write out simplified molecule topologies to use cg_bonds-v5.tcl\n\n'
            'output .itp files will have the same name as the input ones, but\n'
            'only consist of [ moleculetype ], [ atoms ], and [ bonds ] directives.\n'
@@ -230,7 +316,7 @@ if __name__ == '__main__':
            '\tcg_bonds -top vis.top\n'
            'and now you should be able to see your system with the CG bonds.'
            )
-    
+
     parser = argparse.ArgumentParser(description=msg, formatter_class=RawTextHelpFormatter)
     parser.add_argument("-p", dest="topology", type=Path, help="input .top file used", default="topol.top")
     parser.add_argument("-f", dest="system", type=Path,
@@ -255,26 +341,26 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    #get files in the present directory
+    # get files in the present directory
     files = os.listdir(os.getcwd())
-    
-    #get the topology file
+
+    # get the topology file
     top = os.getcwd() + f'/{args.topology}'
 
     print(f"Reading input {args.topology}")
     topol_lines = input_topol_reader(top)
 
-    #for each molecule in the system, read in the itp
+    # for each molecule in the system, read in the itp
     d = {}
-    for i,j in enumerate(topol_lines['core_itps']):
+    for i, j in enumerate(topol_lines['core_itps']):
         with open(j) as f:
             d[i] = f.readlines()
 
-    #read the molecules into the forcefield
+    # read the molecules into the forcefield
     ff = ForceField('martini3001')
 
     system_defines = {}
-    for i,j in enumerate(d.keys()):
+    for i, j in enumerate(d.keys()):
         try:
             read_itp(d[j], ff)
         except OSError:
@@ -290,23 +376,23 @@ if __name__ == '__main__':
                 print(f"Error reading {topol_lines['core_itps'][i]}. Maybe you have a go model but didn't specify -go?")
                 pass
             else:
-                #this means we've separated things out successfully and can read the actual itp content now
+                # this means we've separated things out successfully and can read the actual itp content now
                 for key, value in misc_result[0].items():
                     system_defines[key] = value
                 read_itp(misc_result[1], ff)
 
-    #iterate over the molecules to make visualisation topologies
+    # iterate over the molecules to make visualisation topologies
     keep = ['bonds', 'constraints', 'pairs', 'virtual_sitesn',
             'virtual_sites2', 'virtual_sites3']
     print("Writing visualisable topology files")
     for molname, block in ff.blocks.items():
-        #write vis topols for molecules we're actually interested in
+        # write vis topols for molecules we're actually interested in
         try:
             assert molname in [i['name'] for i in topol_lines['molecules']]
         except AssertionError:
             continue
 
-        #delete the interactions which are not bonds
+        # delete the interactions which are not bonds
         for interaction_type in list(block.interactions):
             if interaction_type not in keep:
                 del block.interactions[interaction_type]
@@ -316,17 +402,17 @@ if __name__ == '__main__':
         if args.elastic:
             en_bonds = []
             for bond in list(block.interactions['bonds']):
-                #these conditions are taken from the martini3001 forcefield, may cause upset in future
-                #TODO monitor these conditions for future force fields
-                #TODO work out how to insert the #defines statements into the molecule proper. Can't assign.
+                # these conditions are taken from the martini3001 forcefield, may cause upset in future
+                # TODO monitor these conditions for future force fields
+                # TODO work out how to insert the #defines statements into the molecule proper. Can't assign.
                 if len(bond.parameters) == 1:
                     continue
                     # bond.parameters = system_defines[bond.parameters[0]]
                     # print(molname, bond.parameters, system_defines[bond.parameters[0]])
 
-                cond0 = abs(float(bond.parameters[2]) - args.en_force) < 0.1 #elastic network proper
-                cond1 = abs(float(bond.parameters[1]) - 0.970) < 0.1 # long beta elastic
-                cond2 = abs(float(bond.parameters[1]) - 0.640) < 0.1 # short beta elastic
+                cond0 = abs(float(bond.parameters[2]) - args.en_force) < 0.1  # elastic network proper
+                cond1 = abs(float(bond.parameters[1]) - 0.970) < 0.1  # long beta elastic
+                cond2 = abs(float(bond.parameters[1]) - 0.640) < 0.1  # short beta elastic
                 if any([cond0, cond1, cond2]):
                     en_bonds.append(bond)
                     block.remove_interaction('bonds', bond.atoms)
@@ -340,25 +426,25 @@ if __name__ == '__main__':
             if bond.meta.get('ifndef'):
                 block.remove_interaction('constraints', bond.atoms)
 
-        #rewrite pairs as bonds for visualisation
+        # rewrite pairs as bonds for visualisation
         for bond in block.interactions['pairs']:
             block.add_interaction('bonds', bond.atoms, bond.parameters[:2] + ['10000'])
 
         del block.interactions['pairs']
 
-        #make bonds between virtual sites and each of the constructing atoms
+        # make bonds between virtual sites and each of the constructing atoms
         go_dict = {}
         for vs_type in ['virtual_sitesn', 'virtual_sites2', 'virtual_sites3']:
             if args.virtual_sites:
                 for vs in block.interactions[vs_type]:
                     site = vs.atoms[0]
                     constructors = vs.atoms[1:]
-                    #this avoids pointless bonds between a virtual site directly on top of
-                    #its singular constructing atom
+                    # this avoids pointless bonds between a virtual site directly on top of
+                    # its singular constructing atom
                     if args.go:
-                        #make a dictionary of atype: node index
-                        #this is for later so the 'bond' can be drawn properly.
-                        #assert that this site has the name CA to check its a go site and not another VS.
+                        # make a dictionary of atype: node index
+                        # this is for later so the 'bond' can be drawn properly.
+                        # assert that this site has the name CA to check its a go site and not another VS.
                         aname = block.nodes[site]['atomname']
                         atype = block.nodes[site]['atype']
                         if aname == 'CA':
@@ -387,14 +473,14 @@ if __name__ == '__main__':
             ff_go_copy = copy.deepcopy(ff)
             go_writer(ff_go_copy, molname, bonds_list)
 
-        #write out the molecule with an amended name
+        # write out the molecule with an amended name
         mol_out = block.to_molecule()
-        mol_out.meta['moltype'] = molname+'_vis'
+        mol_out.meta['moltype'] = molname + '_vis'
 
         header = [f'Visualisation topology for {molname}', 'NOT FOR SIMULATIONS']
 
-        with open(molname+'_vis.itp', 'w') as outfile:
-            write_molecule_itp(mol_out, outfile=outfile, header = header)
+        with open(molname + '_vis.itp', 'w') as outfile:
+            write_molecule_itp(mol_out, outfile=outfile, header=header)
 
     if args.elastic:
         topol_writing(topol_lines, 'en', W_include=args.system)
