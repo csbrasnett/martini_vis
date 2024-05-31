@@ -15,6 +15,14 @@ This builds on previous work that produced the `cg_bonds-v5.tcl` script, which r
 
 If the solution here isn't working for you, please open an issue!
 
+## Disclaimers
+
+This code's mainly been tested on relatively simple systems.
+It hasn't been checked for larger more complex systems with 
+big mixtures of lipids and proteins, so if you're looking at something big, it's likely there'll be an error.
+
+If you find an error, please open an issue so it can be fixed!
+
 ## Dependencies
 
 The only non-standard library used to run `vis_top_writer.py` is [Vermouth](https://github.com/marrink-lab/vermouth-martinize). 
@@ -59,12 +67,6 @@ NA               10
 CL               10
 ```
 
-i.e. you have :
-1) a set of input topology files from Martini with "martini" in their names
-2) a set of input topology files that are specific to your system, and __don't__ have "martini" anywhere in their names
-
-`vis_top_writer.py` will maintain things that are generic to martini systems (like molecules that are defined in set 1: water, ions, etc.) and will make visualisable topologies for anything it finds in set 2 (like your protein and other molecules)
-
 ### Output
 
 Running `./vis_top_writer.py -p topol.top -f frame.gro` on the above system, together with a .gro file that you want an index file for
@@ -74,6 +76,8 @@ will produce the following output:
 #include "/absolute/path/to/file/martini_v3.0.0.itp"
 #include "/absolute/path/to/file/martini_v3.0.0_solvents_v1.itp"
 #include "/absolute/path/to/file/martini_v3.0.0_ions_v1.itp"
+#include "/absolute/path/to/file/my_protein.itp"
+#include "/absolute/path/to/file/something_else.itp"
 #include "/absolute/path/to/file/my_protein_vis.itp"
 #include "/absolute/path/to/file/something_else_vis.itp"
 
@@ -89,8 +93,7 @@ CL               10
 So the differences are:
 1) The input topologies are:
    * Now written with absolute paths to the directory they were found in
-   * For non-default martini topologies (ie. the molecules of interest in your system)
-   new visualisable topologies have been written and included
+   * For the molecules of interest in your system, new visualisable topologies have been written and included
 2) The [ molecules ] directive of the file:
    * Lists the new names of the visualising topologies
    * No longer has an entry for the water in the system, because a water-less index file was written.
@@ -107,6 +110,12 @@ and by default 700 for Martini 3 proteins - used for the network is unique in yo
 you don't have sidechains/ligands which are bound with the same force constant. Similarly, the short/long 
 elastic network bonds for beta sheets are identified by their distance parameter, which is encoded in the force
 field. I haven't extensively checked this degeneracy assumption, so if it breaks for you, please let me know.
+
+One other complication with looking at elastic networks is that VMD can't handle atoms with more than 12 bonds attached.
+`vis_top_writer.py` handles this by inspecting the elastic network and - if any such atoms are found - removing these
+"excessive" bonds. This means that while you'll be able to look at your protein with its network in VMD, the network you
+see won't contain all the elastic network bonds that were applied during your simulation. The bonds that were removed
+get written to a separate text file for noting in case they're of interest to you.
 
 &ast; at least I'm pretty certain it does
 
@@ -134,11 +143,3 @@ By default, it's assumed the file will be called `go_nbparams.itp` as per the
 latest version of martinize2, where the Gō parameters are calculated internally.
 If you're using a different version of the Gō model where this file is called something
 different, you can specify that with the `-gf` flag
-
-## Disclaimers
-
-This code's mainly been tested on relatively simple systems.
-It hasn't been checked for larger more complex systems with 
-big mixtures of lipids and proteins, so if you're looking at something big, it's likely there'll be an error.
-
-If you find an error, please open an issue so it can be fixed!
