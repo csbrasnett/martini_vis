@@ -133,19 +133,21 @@ def en_writer(ff, molname, en_bonds):
                 l1.append([interaction, interaction.atoms[1]])
             elif cond0 and cond1:
                 l2.append([interaction, interaction.atoms[0], interaction.atoms[1]])
-
-        X = [i[0] for i in l0]+[i[0] for i in l1]
-        Y = [i[1] for i in l0]+[i[1] for i in l1]
+                # print(interaction)
+        X = [i[0] for i in l0]+[i[0] for i in l1]+[i[0] for i in l2]+[i[0] for i in l2]
+        Y = [i[1] for i in l0]+[i[1] for i in l1]+[i[1] for i in l2]+[i[2] for i in l2]
         Z = [list(x) for x in sorted(zip(Y,X), key=lambda pair: pair[0])]
 
         # make sure we have a consistent set of indices to remove edges from
         s0 = set([x[0] for x in Z])
         s1 = set(over_limit_ind)
+
         assert s0.difference(s1) == s1.difference(s0)
 
         removed = []
         sorted_atoms = [x[0] for x in Z]
         sorted_interactions = [x[1] for x in Z]
+        print_err = True
         for index, value in enumerate(over_limit_ind):
             inds = [i for i, x in enumerate(sorted_atoms) if x == value]
             r_inds = iter(range(len(inds)))
@@ -153,13 +155,19 @@ def en_writer(ff, molname, en_bonds):
             target_interactions = [sorted_interactions[i] for i in inds]
 
             while target > 0:
-                i = next(r_inds)
-                removed.append(target_interactions[i])
-                G.remove_edge(target_interactions[i].atoms[0],
-                              target_interactions[i].atoms[1]
-                              )
-                ff.blocks[molname].remove_interaction('bonds', target_interactions[i].atoms)
-                target -= 1
+                try:
+                    i = next(r_inds)
+                    removed.append(target_interactions[i])
+                    G.remove_edge(target_interactions[i].atoms[0],
+                                  target_interactions[i].atoms[1]
+                                  )
+                    ff.blocks[molname].remove_interaction('bonds', target_interactions[i].atoms)
+                    target -= 1
+                except nx.exception.NetworkXError:
+                    if print_err == True:
+                        print('Something went wrong while removing excess elastic network bonds. This is a placeholder statement while things are fixed.')
+                    print_err = False
+                    pass
 
     try:
         assert not any([i > 12 for i in [G.degree[node] for node in G.nodes]])
@@ -441,6 +449,7 @@ if __name__ == '__main__':
                     constructors = vs.atoms[1:]
                     # this avoids pointless bonds between a virtual site directly on top of
                     # its singular constructing atom
+                    block.nodes[site]['mass'] = 1
                     if args.go:
                         # make a dictionary of atype: node index
                         # this is for later so the 'bond' can be drawn properly.
