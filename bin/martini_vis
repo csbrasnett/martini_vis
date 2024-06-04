@@ -430,6 +430,9 @@ def main():
         for bond in list(block.interactions['constraints']):
             if bond.meta.get('ifndef'):
                 block.remove_interaction('constraints', bond.atoms)
+            else:
+                block.add_interaction('bonds', bond.atoms, bond.parameters + ['10000'])
+                block.remove_interaction('constraints', bond.atoms)
 
         # rewrite pairs as bonds for visualisation
         for bond in block.interactions['pairs']:
