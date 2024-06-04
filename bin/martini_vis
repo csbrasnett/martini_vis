@@ -313,9 +313,7 @@ def input_topol_reader(file):
 
     return topol_lines
 
-
-if __name__ == '__main__':
-
+def main():
     msg = ('Write out simplified molecule topologies to use cg_bonds-v5.tcl\n\n'
            'output .itp files will have the same name as the input ones, but\n'
            'only consist of [ moleculetype ], [ atoms ], and [ bonds ] directives.\n'
@@ -501,3 +499,7 @@ if __name__ == '__main__':
         index_writer(args.system)
 
     print('All done!')
+
+
+if __name__ == '__main__':
+    main()
