@@ -8,7 +8,7 @@ from vermouth.gmx import read_itp, write_molecule_itp
 from vermouth.forcefield import ForceField
 import os
 import argparse
-from argparse import RawTextHelpFormatter
+from argparse import ArgumentDefaultsHelpFormatter
 import copy
 from pathlib import Path
 import networkx as nx
@@ -316,16 +316,8 @@ def input_topol_reader(file):
 
 
 def main():
-    msg = ('Write out simplified molecule topologies to use cg_bonds-v5.tcl\n\n'
-           'output .itp files will have the same name as the input ones, but\n'
-           'only consist of [ moleculetype ], [ atoms ], and [ bonds ] directives.\n'
-           'We also write a vis.top with correct paths and names for the new files.\n'
-           'In VMD, first source cg_bonds.tcl, then run:\n'
-           '\tcg_bonds -top vis.top\n'
-           'and now you should be able to see your system with the CG bonds.'
-           )
 
-    parser = argparse.ArgumentParser(description=msg, formatter_class=RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-p", dest="topology", type=Path, help="input .top file used", default="topol.top")
     parser.add_argument("-f", dest="system", type=Path,
                         help=("Gromacs .gro file for which to write a non-water index file. "
