@@ -169,24 +169,24 @@ def en_writer(ff, molname, en_bonds):
                     print_err = False
                     pass
 
-    try:
-        assert not any([i > 12 for i in [G.degree[node] for node in G.nodes]])
-    except AssertionError:
-        print("Couldn't remove all bonds necessary, probably can't network in VMD")
+        try:
+            assert not any([i > 12 for i in [G.degree[node] for node in G.nodes]])
+        except AssertionError:
+            print("Couldn't remove all bonds necessary, probably can't network in VMD")
 
-    with open(molname + '_surplus_en.txt', 'w') as extra_en:
-        extra_en.write(f'Elastic network bonds removed from {molname}_en.itp\n')
-        extra_en.write('This is for noting in visualisation, not for simulation\n\n')
-        extra_en.write(f'These bonds will be missing if you load {molname}_en.itp in vmd\n')
-        extra_en.write("having been present in your simulation. If you're inspecting your\n")
-        extra_en.write('elastic network because you suspect some error because of it, bear this in mind.\n')
+        with open(molname + '_surplus_en.txt', 'w') as extra_en:
+            extra_en.write(f'Elastic network bonds removed from {molname}_en.itp\n')
+            extra_en.write('This is for noting in visualisation, not for simulation\n\n')
+            extra_en.write(f'These bonds will be missing if you load {molname}_en.itp in vmd\n')
+            extra_en.write("having been present in your simulation. If you're inspecting your\n")
+            extra_en.write('elastic network because you suspect some error because of it, bear this in mind.\n')
 
-        extra_en.write('   i    j func b0 kb\n')
+            extra_en.write('   i    j func b0 kb\n')
 
-        for i in removed:
-            extra_en.writelines(f'{i.atoms[0]:4d} {i.atoms[1]:4d} '+
-                                f'{i.parameters[0]:1s} {i.parameters[1]:5s} {i.parameters[2]:5s}'+
-                                '\n')
+            for i in removed:
+                extra_en.writelines(f'{i.atoms[0]:4d} {i.atoms[1]:4d} '+
+                                    f'{i.parameters[0]:1s} {i.parameters[1]:5s} {i.parameters[2]:5s}'+
+                                    '\n')
 
     # write the file out
     mol_out = ff.blocks[molname].to_molecule()

@@ -5,46 +5,65 @@ Martini representation of the protein overlaid on the atomistic one, showing the
 Martini representation of the protein overlaid on the atomistic one, showing all bonds, with the elastic network in black.
 Martini representation of the protein, showing all bonds.](image.png "Visualising elastic networks")
 
-Scripts to aid the visualisation of coarse-grained martini trajectories.
+Scripts to aid the visualisation of coarse-grained Martini trajectories.
 
-Martini_vis centres on the `vis_top_writer.py` script, which uses [vermouth](https://github.com/marrink-lab/vermouth-martinize) to stably
-rewrite your input topology files as ones that can be used for visualisation in vmd.
+Martini_vis uses [vermouth](https://github.com/marrink-lab/vermouth-martinize) to stably
+rewrite your input topology files as ones that can be used for visualisation in VMD.
 
-This builds on previous work that produced the `cg_bonds-v5.tcl` script, which reads martini topology information into vmd. At some point
-`cg_bonds-v5.tcl` wasn't working with the latest models, so I wrote a script that should sort everything out. 
+This builds on previous work that produced the `cg_bonds-v5.tcl` script, which reads Martini topology information into VMD. 
+`cg_bonds-v5.tcl` can't handle several interaction types that modern Martini models make extensive use of, like virtual sites.
+Martini_vis handles these and more by rewriting virtual sites as bonded atoms for visualisation purposes.
+
+Thanks to [Jan Stevens](https://github.com/jan-stevens) for `viz.vmd`
 
 If the solution here isn't working for you, please open an issue!
 
 ## Disclaimers
 
 This code's mainly been tested on relatively simple systems.
-It hasn't been checked for larger more complex systems with 
+It hasn't been tested extensively for larger/more complex systems with 
 big mixtures of lipids and proteins, so if you're looking at something big, it's likely there'll be an error.
 
 If you find an error, please open an issue so it can be fixed!
 
-## Dependencies
+## Installation
 
-The only non-standard library used to run `vis_top_writer.py` is [Vermouth](https://github.com/marrink-lab/vermouth-martinize). 
-Please ensure you have Vermouth installed in your Python environment before running the script.
+### Installation with _pip_
+
+```commandline
+python3 -m venv venv && source venv/bin/activate # Not required, but often convenient.
+pip install git+https://github.com/csbrasnett/martini_vis
+```
+
+### From repository source 
+
+```commandline
+git clone https://github.com/csbrasnett/martini_vis
+cd martini_vis
+python3 -m venv venv && source venv/bin/activate
+pip install .
+```
 
 ## Usage
 
-1) Run `./vis_top_writer.py` with your .top file you used to run a simulation. This will produce:
-   1) Edited *_vis.itp files for all the non-standard (e.g. water, ions) molecules in your system described in the input .top file.  
+1) Run e.g. `martini_vis -p topol.top`. This will produce:
+   1) Edited *_vis.itp files for all the molecules in your system described in the input .top file.  
       * NB. by default, virtual sites will be rewritten as "real", with bonds between the sites and their constructing atoms. 
-      To stop this, use the `-s` flag when running `vis_top_writer.py`.
+      To stop this, use the `-vs` flag.
    2) `vis.top`, a new .top file for your system and the visualisable topologies. `cg_bonds-v5.tcl` requires absolute paths to your itps, which is solved by running the script.
    3) Optionally by providing the .gro file you plan to visualise, you can write an index file without containing your system without water to use in processing your trajectory. 
    Something like `gmx trjconv -f traj_comp.xtc -s topol.tpr -n index.ndx -pbc mol -o vis.xtc` will write new trajectory using the index file provided. As there is only one index group,
    no further interaction with `trjconv` is required. 
       * NB. if you use this option, then `vis.top` will not contain an entry for the waters in your system at all.
-2) Load your simulation into vmd.
-3) `source cg_bonds-v5.tcl` in vmd.
-4) Load your visualisable topologies using `cg_bonds-v5 -top vis.top`.
-5) Visualise your simulation with bonds in Martini!
+2) Load your simulation into vmd:
+   * `vmd frame.gro trajectory.xtc -e viz.vmd` will load your new topologies automatically. 
+   Otherwise you'll have to interact with VMD directly: 
+      1) load your system: `vmd frame.gro trajectory.xtc`
+      2) load cg_bonds: `source cg_bonds-v5.tcl`
+      3) load your visualisable topologies: `cg_bonds -top vis.top`
+3) Visualise your simulation with bonds in Martini!
 
-## Notes on using `vis_top_writer.py`
+## Notes on using `martini_vis`
 
 ### Input
 We assume the input topology looks like something as follows:
@@ -69,7 +88,7 @@ CL               10
 
 ### Output
 
-Running `./vis_top_writer.py -p topol.top -f frame.gro` on the above system, together with a .gro file that you want an index file for
+Running `martini_vis -p topol.top -f frame.gro` on the above system, together with a .gro file that you want an index file for
 will produce the following output:
 
 ```
@@ -100,7 +119,7 @@ So the differences are:
 
 ## I want to see my elastic network!
 
-cg_bonds-v5.tcl draws elastic networks in the same way that martinize2 generates them*:
+`cg_bonds-v5.tcl` draws elastic networks in the same way that martinize2 generates them*:
 finding pairs of atoms within a cutoff distance. I'm not certain this is guaranteed to either exactly
 reproduce the underlying topology of the simulation, or be very quick. Here, there is the option to 
 separate the elastic network generated by martinize2 out for special visualisation using the `-el` and `-ef` flags.
@@ -112,7 +131,7 @@ elastic network bonds for beta sheets are identified by their distance parameter
 field. I haven't extensively checked this degeneracy assumption, so if it breaks for you, please let me know.
 
 One other complication with looking at elastic networks is that VMD can't handle atoms with more than 12 bonds attached.
-`vis_top_writer.py` handles this by inspecting the elastic network and - if any such atoms are found - removing these
+`martini_vis` handles this by inspecting the elastic network and - if any such atoms are found - removing these
 "excessive" bonds. This means that while you'll be able to look at your protein with its network in VMD, the network you
 see won't contain all the elastic network bonds that were applied during your simulation. The bonds that were removed
 get written to a separate text file for noting in case they're of interest to you.
@@ -122,11 +141,10 @@ get written to a separate text file for noting in case they're of interest to yo
 So in summary, there's no straightforward way to visualise your elastic network like I show in the
 picture at the top. However, should you still want it, here's a hack:
 
-1) run `vis_top_writer.py` with `-el` and `-ef` for your system
-2) load your system in vmd 
-3) run `cg_bonds -top vis.top` as usual to see the direct bonded network of your system
-4) load your system a second time into vmd
-5) run `cg_bonds -top en.top` on your new molecule, to now see the elastic network.
+1) run `martini_vis` with `-el` and `-ef` for your system
+2) load your system in vmd as described above to see the direct bonded network of your system
+3) load your system a second time into vmd
+4) run `cg_bonds -top en.top` on your new molecule, to now see the elastic network.
 
 The vmd settings in each system should then be something like
 `not resname ION` for the whole protein in the first molecule, and `name BB and not resname protein` for the 
