@@ -56,7 +56,7 @@ pip install .
    no further interaction with `trjconv` is required. 
       * NB. if you use this option, then `vis.top` will not contain an entry for the waters in your system at all.
 2) Load your simulation into vmd:
-   * `vmd frame.gro trajectory.xtc -e viz.vmd` will load your new topologies automatically. 
+   * `vmd frame.gro trajectory.xtc -e viz.vmd` will load your new topologies automatically, assuming `cg_bonds-v5.tcl` exists in some form in the directory you're looking at
    Otherwise you'll have to interact with VMD directly: 
       1) load your system: `vmd frame.gro trajectory.xtc`
       2) load cg_bonds: `source cg_bonds-v5.tcl`
