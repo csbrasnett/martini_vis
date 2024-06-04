@@ -15,7 +15,7 @@ import networkx as nx
 
 
 def misc_file_reader(lines):
-    '''
+    """
     Try to handle miscellaneous files which can't be read into the force field by read_itp
 
     Parameters
@@ -32,7 +32,7 @@ def misc_file_reader(lines):
         lines from an input itp that don't have #define in them
 
     if others == lines, None is returned, because the input file doesn't contain anything interesting
-    '''
+    """
     defines = {i.split()[1]: i.split(';')[0].split()[2:5] for i in lines if '#define' in i}
     others = [line for line in lines if '#define' not in line]
     if others == lines:
@@ -42,13 +42,13 @@ def misc_file_reader(lines):
 
 
 def go_writer(ff, molname, go_bonds):
-    '''
+    """
     write a go network only topology for a particular molecule
 
     Parameters
     ----------
     ff: vermouth forcefield
-        vermouth force field containing the input syste
+        vermouth force field containing the input system
     molname: str
         name of the molecule to separate out
     go_bonds: list
@@ -57,7 +57,7 @@ def go_writer(ff, molname, go_bonds):
     Returns
     -------
     None
-    '''
+    """
     # remove all interactions from the molecule
     for interaction_type in list(ff.blocks[molname].interactions):
         del ff.blocks[molname].interactions[interaction_type]
@@ -77,13 +77,13 @@ def go_writer(ff, molname, go_bonds):
 
 
 def en_writer(ff, molname, en_bonds):
-    '''
+    """
     write an elastic network only topology for a particular molecule
 
     Parameters
     ----------
     ff: vermouth forcefield
-        vermouth force field containing the input syste
+        vermouth force field containing the input system
     molname: str
         name of the molecule to separate out
     en_bonds: list
@@ -92,7 +92,7 @@ def en_writer(ff, molname, en_bonds):
     Returns
     -------
     None
-    '''
+    """
     # remove all interactions from the molecule
     for interaction_type in list(ff.blocks[molname].interactions):
         del ff.blocks[molname].interactions[interaction_type]
@@ -103,13 +103,13 @@ def en_writer(ff, molname, en_bonds):
         edges.append(bond.atoms)
         ff.blocks[molname].add_interaction('bonds', bond.atoms, bond.parameters)
 
-    #make a graph, look at the degrees of the nodes
-    G = nx.Graph()
-    G.add_nodes_from(ff.blocks[molname].nodes)
-    G.add_edges_from(edges)
-    degrees = [G.degree[node] for node in G.nodes]
+    # make a graph, look at the degrees of the nodes
+    graph = nx.Graph()
+    graph.add_nodes_from(ff.blocks[molname].nodes)
+    graph.add_edges_from(edges)
+    degrees = [graph.degree[node] for node in graph.nodes]
     # handle the points where more EN bonds have been written than VMD can handle (12)
-    if any([i>12 for i in [G.degree[node] for node in G.nodes]]):
+    if any([i > 12 for i in [graph.degree[node] for node in graph.nodes]]):
 
         print(f"There are atoms in {molname} which have > 12 elastic network bonds."
               " Some will be removed and recorded for posterity")
@@ -133,20 +133,20 @@ def en_writer(ff, molname, en_bonds):
                 l1.append([interaction, interaction.atoms[1]])
             elif cond0 and cond1:
                 l2.append([interaction, interaction.atoms[0], interaction.atoms[1]])
-                # print(interaction)
-        X = [i[0] for i in l0]+[i[0] for i in l1]+[i[0] for i in l2]+[i[0] for i in l2]
-        Y = [i[1] for i in l0]+[i[1] for i in l1]+[i[1] for i in l2]+[i[2] for i in l2]
-        Z = [list(x) for x in sorted(zip(Y,X), key=lambda pair: pair[0])]
+        all_interactions = [i[0] for i in l0]+[i[0] for i in l1]+[i[0] for i in l2]+[i[0] for i in l2]
+        all_indices = [i[1] for i in l0]+[i[1] for i in l1]+[i[1] for i in l2]+[i[2] for i in l2]
+        sorted_indices_interactions = [list(x) for x in sorted(zip(all_indices, all_interactions),
+                                                               key=lambda pair: pair[0])]
 
         # make sure we have a consistent set of indices to remove edges from
-        s0 = set([x[0] for x in Z])
+        s0 = set([x[0] for x in sorted_indices_interactions])
         s1 = set(over_limit_ind)
 
         assert s0.difference(s1) == s1.difference(s0)
 
         removed = []
-        sorted_atoms = [x[0] for x in Z]
-        sorted_interactions = [x[1] for x in Z]
+        sorted_atoms = [x[0] for x in sorted_indices_interactions]
+        sorted_interactions = [x[1] for x in sorted_indices_interactions]
         print_err = True
         for index, value in enumerate(over_limit_ind):
             inds = [i for i, x in enumerate(sorted_atoms) if x == value]
@@ -158,19 +158,20 @@ def en_writer(ff, molname, en_bonds):
                 try:
                     i = next(r_inds)
                     removed.append(target_interactions[i])
-                    G.remove_edge(target_interactions[i].atoms[0],
-                                  target_interactions[i].atoms[1]
-                                  )
+                    graph.remove_edge(target_interactions[i].atoms[0],
+                                      target_interactions[i].atoms[1]
+                                      )
                     ff.blocks[molname].remove_interaction('bonds', target_interactions[i].atoms)
                     target -= 1
                 except nx.exception.NetworkXError:
-                    if print_err == True:
-                        print('Something went wrong while removing excess elastic network bonds. This is a placeholder statement while things are fixed.')
+                    if print_err:
+                        print('Something went wrong while removing excess elastic network bonds.'
+                              ' This is a placeholder statement while things are fixed.')
                     print_err = False
                     pass
 
         try:
-            assert not any([i > 12 for i in [G.degree[node] for node in G.nodes]])
+            assert not any([i > 12 for i in [graph.degree[node] for node in graph.nodes]])
         except AssertionError:
             print("Couldn't remove all bonds necessary, probably can't network in VMD")
 
@@ -184,8 +185,8 @@ def en_writer(ff, molname, en_bonds):
             extra_en.write('   i    j func b0 kb\n')
 
             for i in removed:
-                extra_en.writelines(f'{i.atoms[0]:4d} {i.atoms[1]:4d} '+
-                                    f'{i.parameters[0]:1s} {i.parameters[1]:5s} {i.parameters[2]:5s}'+
+                extra_en.writelines(f'{i.atoms[0]:4d} {i.atoms[1]:4d} ' +
+                                    f'{i.parameters[0]:1s} {i.parameters[1]:5s} {i.parameters[2]:5s}' +
                                     '\n')
 
     # write the file out
@@ -198,8 +199,8 @@ def en_writer(ff, molname, en_bonds):
         write_molecule_itp(mol_out, outfile=outfile, header=header)
 
 
-def topol_writing(topol_lines, ext='vis', W_include=None):
-    '''
+def topol_writing(topol_lines, ext='vis', w_include=None):
+    """
 
     Write new .top file based on the input one
 
@@ -209,14 +210,14 @@ def topol_writing(topol_lines, ext='vis', W_include=None):
         lines from the input topology file split up into different keys, as per input_topol_reader
     ext: str
         the extension to use in looking for new file names to add to the output .top file
-    W_include
+    w_include
         if W_include is not None (ie. args.system has been given something)
         then the line for water is not written out in the .top file
 
     Returns
     -------
     None
-    '''
+    """
     # this will write everything and is gross but it should work
     # because everything will be included
     new_topol_head = []
@@ -231,7 +232,7 @@ def topol_writing(topol_lines, ext='vis', W_include=None):
     # correct the [ molecules ] directive of the top file to correct for the new molecule names.
     topol_rest_vis = []
     original_mols = [i.split(f'_{ext}')[0] for i in vis_files]
-    if W_include is not None:
+    if w_include is not None:
         original_mols.remove('W')
     for i in topol_lines['molecules']:
         if any(mol in i['name'] for mol in original_mols):
@@ -244,7 +245,7 @@ def topol_writing(topol_lines, ext='vis', W_include=None):
 
 
 def index_writer(system):
-    '''
+    """
     Write a .ndx file for a system without water
     Parameters
     ----------
@@ -254,7 +255,7 @@ def index_writer(system):
     Returns
     -------
 
-    '''
+    """
     if os.path.splitext(system)[1] != '.gro':
         raise TypeError('Must provide a file in .gro format')
 
@@ -267,9 +268,9 @@ def index_writer(system):
     with open(f"{system}", 'r') as file:
         lines = file.readlines()
     # this skips the header and footer of the file
-    l = [j for (j, k) in enumerate(lines[2:-1], start=1) if k[10:15].strip() != "W"]
+    file = [j for (j, k) in enumerate(lines[2:-1], start=1) if k[10:15].strip() != "W"]
     # split the lines every 12th index as gromacs requires
-    lines_out = [l[x:x + 12] for x in range(0, len(l), 12)]
+    lines_out = [file[x:x + 12] for x in range(0, len(file), 12)]
 
     # write the index file
     with open('index.ndx', 'w') as fout:
@@ -293,7 +294,7 @@ def input_topol_reader(file):
                     inclusions.append(line.split('"')[1])
                 else:
                     go.append(line.split('"')[1])
-            if mols == True:
+            if mols:
                 molecules.append({'name': line.split()[0],
                                   'n_mols': line.split()[1]})
             if 'molecules' in line:
@@ -302,7 +303,7 @@ def input_topol_reader(file):
                 system.append(line)
             if 'system' in line:
                 sys = True
-            if sys == True:
+            if sys:
                 system.append(line)
     topol_lines = {'core_itps': inclusions,
                    'system': system,
@@ -312,6 +313,7 @@ def input_topol_reader(file):
         topol_lines['go'] = go
 
     return topol_lines
+
 
 def main():
     msg = ('Write out simplified molecule topologies to use cg_bonds-v5.tcl\n\n'
@@ -346,9 +348,6 @@ def main():
                         help="Nonbonded parameter itp file for your go network")
 
     args = parser.parse_args()
-
-    # get files in the present directory
-    files = os.listdir(os.getcwd())
 
     # get the topology file
     top = os.getcwd() + f'/{args.topology}'
@@ -402,7 +401,7 @@ def main():
         for interaction_type in list(block.interactions):
             if interaction_type not in keep:
                 del block.interactions[interaction_type]
-        # remove meta (ie. the #IFDEF FLEXIBLE) from the bonds
+        # remove meta (i.e. the #IFDEF FLEXIBLE) from the bonds
         for bond in block.interactions['bonds']:
             bond.meta.clear()
         if args.elastic:
@@ -426,7 +425,7 @@ def main():
             en_writer(ff_en_copy, molname, en_bonds)
 
         # this should then keep any constraints which don't have IFDEF statements
-        # eg. alpha helices are described by constraints without these.
+        # e.g. alpha helices are described by constraints without these.
         # however, the remove_interactions function doesn't work atm.
         for bond in list(block.interactions['constraints']):
             if bond.meta.get('ifndef'):
@@ -451,7 +450,7 @@ def main():
                     if args.go:
                         # make a dictionary of atype: node index
                         # this is for later so the 'bond' can be drawn properly.
-                        # assert that this site has the name CA to check its a go site and not another VS.
+                        # assert that this site has the name CA to check it's a go site and not another VS.
                         aname = block.nodes[site]['atomname']
                         atype = block.nodes[site]['atype']
                         if aname == 'CA':
@@ -490,10 +489,10 @@ def main():
             write_molecule_itp(mol_out, outfile=outfile, header=header)
 
     if args.elastic:
-        topol_writing(topol_lines, 'en', W_include=args.system)
+        topol_writing(topol_lines, 'en', w_include=args.system)
     if args.go:
-        topol_writing(topol_lines, 'go', W_include=args.system)
-    topol_writing(topol_lines, W_include=args.system)
+        topol_writing(topol_lines, 'go', w_include=args.system)
+    topol_writing(topol_lines, w_include=args.system)
 
     if args.system is not None:
         index_writer(args.system)

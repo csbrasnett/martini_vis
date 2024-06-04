@@ -14,7 +14,7 @@ This builds on previous work that produced the `cg_bonds-v5.tcl` script, which r
 `cg_bonds-v5.tcl` can't handle several interaction types that modern Martini models make extensive use of, like virtual sites.
 Martini_vis handles these and more by rewriting virtual sites as bonded atoms for visualisation purposes.
 
-Thanks to [Jan Stevens](https://github.com/jan-stevens) for `viz.vmd`
+Thanks to [Jan Stevens](https://github.com/jan-stevens) for `vis.vmd`
 
 If the solution here isn't working for you, please open an issue!
 
