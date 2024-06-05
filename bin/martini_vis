@@ -405,6 +405,10 @@ def main():
                 # TODO monitor these conditions for future force fields
                 # TODO work out how to insert the #defines statements into the molecule proper. Can't assign.
                 if len(bond.parameters) == 1:
+                    atoms = bond.atoms
+                    paras = bond.parameters[0]
+                    block.remove_interaction('bonds', bond.atoms)
+                    block.add_interaction('bonds', atoms, system_defines[paras])
                     continue
                     # bond.parameters = system_defines[bond.parameters[0]]
                     # print(molname, bond.parameters, system_defines[bond.parameters[0]])
