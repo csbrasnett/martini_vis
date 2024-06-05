@@ -370,10 +370,12 @@ def main():
             '''
             misc_result = misc_file_reader(d[j])
             if misc_result is None:
-                print(f"Error reading {topol_lines['core_itps'][i]}. Maybe you have a go model but didn't specify -go?")
-                pass
+                # if [ defaults ] is found, then it's martini_v3.0.0.itp or similar. ignore it.
+                if "[ defaults ]" not in [i.strip() for i in d[j]]:
+                    print(f"Error reading {topol_lines['core_itps'][i]}. Will ignore and exclude from output system.")
             else:
                 # this means we've separated things out successfully and can read the actual itp content now
+                # tracking system_defines is useful for when we sort the #TODOs below.
                 for key, value in misc_result[0].items():
                     system_defines[key] = value
                 read_itp(misc_result[1], ff)
