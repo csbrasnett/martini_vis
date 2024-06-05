@@ -464,6 +464,7 @@ def main():
                 del block.interactions[vs_type]
 
         if args.go:
+            # len(go_dict)>0:
             if args.go_path:
                 go_nb_file = args.go_file
             else:
@@ -478,11 +479,21 @@ def main():
             #TODO this causes problems when we're not actually in the correct block that's
             # associated with the go model! ignore the exception for now.
             try:
-                bonds_list = [[go_dict[i[0]], go_dict[i[1]], '1', i[3], '1000'] for i in nb_lines]
-                ff_go_copy = copy.deepcopy(ff)
-                go_writer(ff_go_copy, molname, bonds_list)
-            except KeyError:
+                bonds_list = []
+                for i in nb_lines:
+                    try:
+                        assert i[0] in go_dict
+                        assert i[1] in go_dict
+                        bonds_list.append([go_dict[i[0]], go_dict[i[1]], '1', i[3], '1000'])
+                    except AssertionError:
+                        pass
+            except KeyError as e1:
+                # bonds_list = None
                 pass
+            # if bonds_list is not None:
+            ff_go_copy = copy.deepcopy(ff)
+            go_writer(ff_go_copy, molname, bonds_list)
+
         # write out the molecule with an amended name
         mol_out = block.to_molecule()
         mol_out.meta['moltype'] = molname + '_vis'
