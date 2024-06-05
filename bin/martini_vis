@@ -435,7 +435,6 @@ def main():
         # rewrite pairs as bonds for visualisation
         for bond in block.interactions['pairs']:
             block.add_interaction('bonds', bond.atoms, bond.parameters[:2] + ['10000'])
-
         del block.interactions['pairs']
 
         # make bonds between virtual sites and each of the constructing atoms
@@ -454,7 +453,7 @@ def main():
                         # assert that this site has the name CA to check it's a go site and not another VS.
                         aname = block.nodes[site]['atomname']
                         atype = block.nodes[site]['atype']
-                        if aname == 'CA':
+                        if (aname.split('_')[0] == 'molecule') or (aname == 'CA'):
                             go_dict[atype] = site
                     else:
                         for constructor in constructors:
@@ -476,10 +475,14 @@ def main():
             with open(go_nb_file, "r") as f:
                 nb_lines = f.readlines()
             nb_lines = [line.split(';')[0].split(' ') for line in nb_lines if '[' not in line]
-            bonds_list = [[go_dict[i[0]], go_dict[i[1]], '1', i[3], '1000'] for i in nb_lines]
-            ff_go_copy = copy.deepcopy(ff)
-            go_writer(ff_go_copy, molname, bonds_list)
-
+            #TODO this causes problems when we're not actually in the correct block that's
+            # associated with the go model! ignore the exception for now.
+            try:
+                bonds_list = [[go_dict[i[0]], go_dict[i[1]], '1', i[3], '1000'] for i in nb_lines]
+                ff_go_copy = copy.deepcopy(ff)
+                go_writer(ff_go_copy, molname, bonds_list)
+            except KeyError:
+                pass
         # write out the molecule with an amended name
         mol_out = block.to_molecule()
         mol_out.meta['moltype'] = molname + '_vis'
