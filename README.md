@@ -56,7 +56,7 @@ pip install .
    no further interaction with `trjconv` is required. 
       * NB. if you use this option, then `vis.top` will not contain an entry for the waters in your system at all.
 2) Load your simulation into vmd:
-   * `vmd frame.gro trajectory.xtc -e viz.vmd` will load your new topologies automatically, assuming `cg_bonds-v5.tcl` exists in some form in the directory you're looking at
+   * `vmd frame.gro trajectory.xtc -e viz.vmd` will load your new topologies automatically, assuming `cg_bonds-v5.tcl` exists in some form in the directory you're looking at.
    Otherwise you'll have to interact with VMD directly: 
       1) load your system: `vmd frame.gro trajectory.xtc`
       2) load cg_bonds: `source cg_bonds-v5.tcl`
@@ -92,13 +92,10 @@ Running `martini_vis -p topol.top -f frame.gro` on the above system, together wi
 will produce the following output:
 
 ```
-#include "/absolute/path/to/file/martini_v3.0.0.itp"
-#include "/absolute/path/to/file/martini_v3.0.0_solvents_v1.itp"
-#include "/absolute/path/to/file/martini_v3.0.0_ions_v1.itp"
-#include "/absolute/path/to/file/my_protein.itp"
-#include "/absolute/path/to/file/something_else.itp"
 #include "/absolute/path/to/file/my_protein_vis.itp"
 #include "/absolute/path/to/file/something_else_vis.itp"
+#include "/absolute/path/to/file/NA_vis.itp"
+#include "/absolute/path/to/file/CL_vis.itp"
 
 [ system ]
 system name
@@ -106,8 +103,8 @@ system name
 [ molecules ]
 Protein_vis 10
 something_else_vis   10
-NA               10
-CL               10
+NA_vis               10
+CL_vis               10
 ```
 So the differences are:
 1) The input topologies are:

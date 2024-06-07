@@ -222,8 +222,8 @@ def topol_writing(topol_lines, ext='vis', w_include=None):
     # because everything will be included
     new_topol_head = []
     # make a new header for the .top file to write the absolute paths
-    for i in topol_lines['core_itps']:
-        new_topol_head.append(f'#include "{os.path.abspath(i)}"\n')
+    # for i in topol_lines['core_itps']:
+    #     new_topol_head.append(f'#include "{os.path.abspath(i)}"\n')
     # get the new vis files to write for the topology header
     vis_files = [i for i in os.listdir(os.getcwd()) if f'_{ext}' in i]
     for i in vis_files:
@@ -315,6 +315,55 @@ def input_topol_reader(file):
     return topol_lines
 
 
+def system_reading(cwd, topology):
+
+    """
+
+    :param cwd:
+    :param topology:
+    :return:
+    """
+
+    # get the topology file
+    top = cwd + f'/{topology}'
+
+    print(f"Reading input {topology}")
+    topol_lines = input_topol_reader(top)
+
+    # for each molecule in the system, read in the itp
+    d = {}
+    for i, j in enumerate(topol_lines['core_itps']):
+        with open(j) as f:
+            d[i] = f.readlines()
+
+    # read the molecules into the forcefield
+    ff = ForceField('martini3001')
+
+    system_defines = {}
+    for i, j in enumerate(d.keys()):
+        try:
+            read_itp(d[j], ff)
+        except OSError:
+            '''
+            if we can't read the file into the system directly, we have something that isn't strictly a molecule
+            most likely its the force field definition file (eg. martini_v3.0.0.itp) but we can't be sure
+            a common one is something with #defines in for generic molecule bonded terms
+            '''
+            misc_result = misc_file_reader(d[j])
+            if misc_result is None:
+                # if [ defaults ] is found, then it's martini_v3.0.0.itp or similar. ignore it.
+                if "[ defaults ]" not in [k.strip() for k in d[j]]:
+                    print(f"Error reading {topol_lines['core_itps'][i]}. Will ignore and exclude from output system.")
+            else:
+                # this means we've separated things out successfully and can read the actual itp content now
+                # tracking system_defines is useful for when we sort the #TODOs below.
+                for key, value in misc_result[0].items():
+                    system_defines[key] = value
+                read_itp(misc_result[1], ff)
+
+    return ff, topol_lines, system_defines
+
+
 def main():
 
     parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
@@ -341,44 +390,7 @@ def main():
 
     args = parser.parse_args()
 
-    # get the topology file
-    top = os.getcwd() + f'/{args.topology}'
-
-    print(f"Reading input {args.topology}")
-    topol_lines = input_topol_reader(top)
-
-    # for each molecule in the system, read in the itp
-    d = {}
-    for i, j in enumerate(topol_lines['core_itps']):
-        with open(j) as f:
-            d[i] = f.readlines()
-
-    # read the molecules into the forcefield
-    ff = ForceField('martini3001')
-
-    system_defines = {}
-    for i, j in enumerate(d.keys()):
-        try:
-            read_itp(d[j], ff)
-        except OSError:
-            '''
-            if we can't read the file into the system directly, we have something that isn't strictly a molecule
-            most likely its the force field definition file (eg. martini_v3.0.0.itp) but we can't be sure
-            a common one is something with #defines in for generic molecule bonded terms
-            
-            
-            '''
-            misc_result = misc_file_reader(d[j])
-            if misc_result is None:
-                # if [ defaults ] is found, then it's martini_v3.0.0.itp or similar. ignore it.
-                if "[ defaults ]" not in [i.strip() for i in d[j]]:
-                    print(f"Error reading {topol_lines['core_itps'][i]}. Will ignore and exclude from output system.")
-            else:
-                # this means we've separated things out successfully and can read the actual itp content now
-                # tracking system_defines is useful for when we sort the #TODOs below.
-                for key, value in misc_result[0].items():
-                    system_defines[key] = value
-                read_itp(misc_result[1], ff)
+    ff, topol_lines, system_defines = system_reading(os.getcwd(), args.topology)
 
     # iterate over the molecules to make visualisation topologies
     keep = ['bonds', 'constraints', 'pairs', 'virtual_sitesn',
@@ -401,18 +413,17 @@ def main():
         if args.elastic:
             en_bonds = []
             for bond in list(block.interactions['bonds']):
-                # these conditions are taken from the martini3001 forcefield, may cause upset in future
-                # TODO monitor these conditions for future force fields
-                # TODO work out how to insert the #defines statements into the molecule proper. Can't assign.
+                # this should introduce actual parameters into the block if the bonds have been given by
+                # a #define statement elsewhere
                 if len(bond.parameters) == 1:
                     atoms = bond.atoms
                     paras = bond.parameters[0]
                     block.remove_interaction('bonds', bond.atoms)
                     block.add_interaction('bonds', atoms, system_defines[paras])
                     continue
-                    # bond.parameters = system_defines[bond.parameters[0]]
-                    # print(molname, bond.parameters, system_defines[bond.parameters[0]])
 
+                # TODO monitor these conditions for future force fields
+                # these conditions are taken from the martini3001 forcefield, may cause upset in future
                 cond0 = abs(float(bond.parameters[2]) - args.en_force) < 0.1  # elastic network proper
                 cond1 = abs(float(bond.parameters[1]) - 0.970) < 0.1  # long beta elastic
                 cond2 = abs(float(bond.parameters[1]) - 0.640) < 0.1  # short beta elastic
@@ -476,10 +487,10 @@ def main():
             with open(go_nb_file, "r") as f:
                 nb_lines = f.readlines()
             nb_lines = [line.split(';')[0].split(' ') for line in nb_lines if '[' not in line]
-            #TODO this causes problems when we're not actually in the correct block that's
+            # TODO this causes problems when we're not actually in the correct block that's
             # associated with the go model! ignore the exception for now.
+            bonds_list = []
             try:
-                bonds_list = []
                 for i in nb_lines:
                     try:
                         assert i[0] in go_dict
@@ -487,10 +498,8 @@ def main():
                         bonds_list.append([go_dict[i[0]], go_dict[i[1]], '1', i[3], '1000'])
                     except AssertionError:
                         pass
-            except KeyError as e1:
-                # bonds_list = None
+            except KeyError:
                 pass
-            # if bonds_list is not None:
             ff_go_copy = copy.deepcopy(ff)
             go_writer(ff_go_copy, molname, bonds_list)
 
@@ -500,8 +509,8 @@ def main():
 
         header = [f'Visualisation topology for {molname}', 'NOT FOR SIMULATIONS']
 
-        with open(molname + '_vis.itp', 'w') as outfile:
-            write_molecule_itp(mol_out, outfile=outfile, header=header)
+        with open(molname + '_vis.itp', 'w') as fout:
+            write_molecule_itp(mol_out, outfile=fout, header=header)
 
     if args.elastic:
         topol_writing(topol_lines, 'en', w_include=args.system)
