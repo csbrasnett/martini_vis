@@ -7,12 +7,12 @@ Martini representation of the protein, showing all bonds.](image.png "Visualisin
 
 Scripts to aid the visualisation of coarse-grained Martini trajectories.
 
-Martini_vis uses [vermouth](https://github.com/marrink-lab/vermouth-martinize) to stably
-rewrite your input topology files as ones that can be used for visualisation in VMD.
+Martini_vis uses [vermouth](https://github.com/marrink-lab/vermouth-martinize) to stably rewrite your input topology files as ones that can be used for visualisation in VMD.
 
-This builds on previous work that produced the `cg_bonds-v5.tcl` script, which reads Martini topology information into VMD. 
-`cg_bonds-v5.tcl` can't handle several interaction types that modern Martini models make extensive use of, like virtual sites.
-Martini_vis handles these and more by rewriting virtual sites as bonded atoms for visualisation purposes.
+Previously, `cg_bonds-vX.tcl` was able to read in Martini system topology information and draw it directly in VMD.
+However, many Martini models now make extensive use of interaction types like virtual sites, which can't be handled
+by the topology reading capabilities of this script directly. Martini_vis handles these and more by rewriting 
+virtual sites as bonded atoms for visualisation purposes.
 
 Thanks to [Jan Stevens](https://github.com/jan-stevens) for `vis.vmd`
 
@@ -56,7 +56,8 @@ pip install .
    no further interaction with `trjconv` is required. 
       * NB. if you use this option, then `vis.top` will not contain an entry for the waters in your system at all.
 2) Load your simulation into vmd:
-   * `vmd frame.gro trajectory.xtc -e viz.vmd` will load your new topologies automatically, assuming `cg_bonds-v5.tcl` exists in some form in the directory you're looking at.
+   * To get ready access to `cg_bonds-v6.tcl` and `vis.vmd`, add the `-vf` flag to `martini_vis` and have these files written to the current directory.
+   * `vmd frame.gro trajectory.xtc -e vis.vmd` will load your new topologies automatically, assuming `cg_bonds-v5.tcl` exists in some form in the directory you're looking at.
    Otherwise you'll have to interact with VMD directly: 
       1) load your system: `vmd frame.gro trajectory.xtc`
       2) load cg_bonds: `source cg_bonds-v5.tcl`
