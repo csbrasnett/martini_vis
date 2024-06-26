@@ -2,7 +2,7 @@
 # VMD script written by save_state $Revision: 1.48 $
 # VMD version: 1.9.4a55
 
-source cg_bonds-v5.tcl
+source cg_bonds-v6.tcl
 cg_bonds -top vis.top
 
 set viewplist {}
