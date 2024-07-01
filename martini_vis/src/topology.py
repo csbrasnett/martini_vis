@@ -70,7 +70,11 @@ def topol_writing(topol_lines, written_mols, ext='vis', w_include=None):
     topol_rest_vis = []
     original_mols = [i.split(f'_{ext}')[0] for i in written_mols]
     if w_include is not None:
-        original_mols.remove(f'W')
+        try:
+            original_mols.remove('W')
+        except ValueError:
+            print('No water to remove!')
+            pass
     for i in topol_lines['molecules']:
         if any(mol in i['name'] for mol in original_mols):
             topol_rest_vis.append(i['name'] + f'_{ext}\t' + i['n_mols'] + '\n')

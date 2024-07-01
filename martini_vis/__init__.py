@@ -16,6 +16,6 @@ else:
     del files, as_file, atexit, ExitStack
 
 from .src.system_reading import system_reading
-from .src import index_writer
+from .src.index_writer import index_writing
 from .src.molecule_editing import molecule_editor
 from .src.topology import topol_writing

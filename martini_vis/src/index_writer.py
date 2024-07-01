@@ -1,7 +1,6 @@
+import pathlib
 
-from os.path import splitext
-
-def index_writer(system):
+def index_writing(system):
     """
     Write a .ndx file for a system without water
     Parameters
@@ -13,7 +12,8 @@ def index_writer(system):
     -------
 
     """
-    if splitext(system)[1] != '.gro':
+
+    if system.suffix != ".gro":
         raise TypeError('Must provide a file in .gro format')
 
     print("Writing a waterless index file. Here're some helpful commands for reference:\n"
