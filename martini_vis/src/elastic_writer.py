@@ -1,7 +1,7 @@
 from vermouth.gmx import write_molecule_itp
 import networkx as nx
 
-def en_writer(ff, molname, en_bonds):
+def en_writer(ff, molname, en_bonds, ext):
     """
     write an elastic network only topology for a particular molecule
 
@@ -117,6 +117,13 @@ def en_writer(ff, molname, en_bonds):
     # write the file out
     mol_out = ff.blocks[molname].to_molecule()
     mol_out.meta['moltype'] = molname + '_en'
+
+    if ext:
+
+        ext_bonds_list = [i.atoms for i in mol_out.interactions['bonds']]
+        stout = ''.join([f'{i[0]}\t{i[1]}\n' for i in ext_bonds_list])
+        with open(f'{molname}_elastic_bonds.txt', 'w') as bonds_list_out:
+            bonds_list_out.write(stout)
 
     header = [f'Elastic network topology for {molname}', 'NOT FOR SIMULATIONS']
 

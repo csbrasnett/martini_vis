@@ -1,6 +1,6 @@
 from vermouth.gmx import write_molecule_itp
 
-def go_writer(ff, molname, go_bonds):
+def go_writer(ff, molname, go_bonds, ext):
     """
     write a go network only topology for a particular molecule
 
@@ -28,6 +28,13 @@ def go_writer(ff, molname, go_bonds):
     # write the file out
     mol_out = ff.blocks[molname].to_molecule()
     mol_out.meta['moltype'] = molname + '_go'
+
+    if ext:
+
+        ext_bonds_list = [i.atoms for i in mol_out.interactions['bonds']]
+        stout = ''.join([f'{i[0]}\t{i[1]}\n' for i in ext_bonds_list])
+        with open(f'{molname}_go_bonds.txt', 'w') as bonds_list_out:
+            bonds_list_out.write(stout)
 
     header = [f'Elastic network topology for {molname}', 'NOT FOR SIMULATIONS']
 

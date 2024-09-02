@@ -6,7 +6,7 @@ from .go_writer import go_writer
 
 
 def molecule_editor(ff, topol_lines, system_defines,
-                    virtual_sites=True,
+                    virtual_sites=True, ext=True,
                     elastic=False, elastic_force=700,
                     go=False, go_path='', go_file=''):
     # iterate over the molecules to make visualisation topologies
@@ -55,7 +55,7 @@ def molecule_editor(ff, topol_lines, system_defines,
                     print(bond.parameters)
                     pass
             ff_en_copy = copy.deepcopy(ff)
-            en_written = en_writer(ff_en_copy, molname, en_bonds)
+            en_written = en_writer(ff_en_copy, molname, en_bonds, ext)
             written_mols.append(en_written)
 
         # this should then keep any constraints which don't have IFDEF statements
@@ -126,12 +126,19 @@ def molecule_editor(ff, topol_lines, system_defines,
             except KeyError:
                 pass
             ff_go_copy = copy.deepcopy(ff)
-            go_written = go_writer(ff_go_copy, molname, bonds_list)
+            go_written = go_writer(ff_go_copy, molname, bonds_list, ext)
             written_mols.append(go_written)
 
         # write out the molecule with an amended name
         mol_out = block.to_molecule()
         mol_out.meta['moltype'] = molname + '_vis'
+
+        if ext:
+
+            ext_bonds_list = [i.atoms for i in mol_out.interactions['bonds']]
+            stout = ''.join([f'{i[0]}\t{i[1]}\n' for i in ext_bonds_list])
+            with open(f'{molname}_bonds.txt', 'w') as bonds_list_out:
+                bonds_list_out.write(stout)
 
         header = [f'Visualisation topology for {molname}', 'NOT FOR SIMULATIONS']
 

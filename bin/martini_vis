@@ -6,10 +6,7 @@
 
 import argparse
 from argparse import ArgumentDefaultsHelpFormatter
-from martini_vis import system_reading
-from martini_vis import index_writing
-from martini_vis import molecule_editor
-from martini_vis import topol_writing
+from martini_vis import system_reading, index_writing, molecule_editor, topol_writing
 from martini_vis import DATA_PATH
 import os
 from pathlib import Path
@@ -40,6 +37,8 @@ def main():
                         help="Nonbonded parameter itp file for your go network")
     parser.add_argument("-vf", default=False, action="store_true",
                         help="Write out associated vmd files (cg_bonds, vis.vmd) in the present directory")
+    parser.add_argument("-ext", default=False, action="store_true",
+                        help="Write system bonds to text files instead of topology files. Useful for non-VMD visualisation.")
 
     args = parser.parse_args()
 
@@ -47,6 +46,7 @@ def main():
 
     written_mols = molecule_editor(ff, topol_lines, system_defines,
                                    virtual_sites=args.virtual_sites,
+                                   ext=args.ext,
                                    elastic=args.elastic,
                                    elastic_force=args.en_force,
                                    go=args.go)
@@ -67,7 +67,6 @@ def main():
                             os.path.join(os.getcwd(), file))
 
     print('All done!')
-
 
 if __name__ == '__main__':
     main()
