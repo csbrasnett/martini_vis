@@ -6,7 +6,7 @@ from .go_writer import go_writer
 
 
 def molecule_editor(ff, topol_lines, system_defines,
-                    virtual_sites=True, ext=True,
+                    virtual_sites=True, ext=False,
                     elastic=False, elastic_force=700,
                     go=False, go_path='', go_file=''):
     # iterate over the molecules to make visualisation topologies
