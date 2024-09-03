@@ -2,6 +2,63 @@
 from vermouth.gmx import read_itp
 from vermouth.forcefield import ForceField
 from .topology import input_topol_reader
+import re
+
+
+def output_str(pairs):
+    op_str = '{'
+    for i in pairs:
+        op_str += f'\u007b{i[0]} {i[1]}\u007d '
+    return op_str[:-1] + '}'
+
+
+def secondary_structure_parsing(lines, molname):
+
+    header = []
+    # this should ensure we only get the header
+    for line in lines:
+        if line[0] == ';':
+            # ignore the ; at the start and the \n at the end
+            header.append(line[1:-1].strip())
+        else:
+            break
+
+    # this should get the code
+    for line in header:
+        if line.upper() == line:
+            ss_string = line
+
+    helices = [i.span() for i in re.finditer('([H|G|I]{3,})', ss_string)]
+    sheets = [i.span() for i in re.finditer('([B|E]{3,})', ss_string)]
+
+    vmd_excl_str = ''
+    for i in helices+sheets:
+        vmd_excl_str += f'(resid > {i[0]} and resid < {i[1]}) or '
+    vmd_excl_str = vmd_excl_str[:-4]
+
+    hlx_col_str = ''
+    for i in helices:
+        hlx_col_str += f'(resid > {i[0]} and resid < {i[1]}) or '
+    hlx_col_str = hlx_col_str[:-4]
+
+    sht_col_str = ''
+    for i in sheets:
+        sht_col_str += f'(resid > {i[0]} and resid < {i[1]}) or '
+    sht_col_str = sht_col_str[:-4]
+
+    if len(helices) > 2 or len(sheets) > 2:
+        with open(f'{molname}_cgsecstruct.txt', 'w') as f:
+            f.write("suggested commands for viewing you molecule with cg_secondary_structure.tcl:\n")
+            f.write(f'cg_helix {output_str(helices)} -hlxcolor "purple" -hlxfilled yes -hlxrad 3 -hlxmethod cylinder -hlxmat "AOChalky" -hlxres 50\n')
+            f.write(f'cg_sheet {output_str(sheets)} -shtfilled "yes" -shtmat "AOChalky" -shtres 50 -shtcolor "red" -shtmethod flatarrow -shtarrwidth 5 -shtheadsize 10 -shtarrthick 3 -shtsides "sharp"\n')
+            f.write('\nAdditionally, use the following command to remove the BB string from your molecule:\n')
+            f.write(f'name BB and not ({vmd_excl_str})')
+            f.write('\nThese commands will have to be modified to specify molid if you have multiple proteins in your system\n')
+            f.write('\nAlternatively use the following to just colour the backbone:')
+            f.write(f'\nhelices: name BB and ({hlx_col_str})')
+            f.write(f'\nsheets: name BB and ({sht_col_str})')
+
+
 def _misc_file_reader(lines):
     """
     Try to handle miscellaneous files which can't be read into the force field by read_itp
@@ -28,6 +85,7 @@ def _misc_file_reader(lines):
     else:
         return defines, others
 
+
 def system_reading(topology):
 
     """
@@ -51,6 +109,7 @@ def system_reading(topology):
     for i, j in enumerate(d.keys()):
         try:
             read_itp(d[j], ff)
+            secondary_structure_parsing(d[j], list(ff.blocks)[-1])
         except OSError:
             '''
             if we can't read the file into the system directly, we have something that isn't strictly a molecule

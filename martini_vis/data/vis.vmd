@@ -5,6 +5,10 @@
 source cg_bonds-v6.tcl
 cg_bonds -top vis.top
 
+source cg_secondary_structure.tcl
+
+pbc box -style tubes -width 0.6 -color black -resolution 42 -material AOChalky
+
 set viewplist {}
 set fixedlist {}
 proc vmdrestoremymaterials {} {
@@ -721,3 +725,4 @@ color scale colors CET_R2 {0.0 0.0 0.0} {0.0 0.0 0.0} {0.0 0.0 0.0}
 vmdrestoremycolors
 label textsize 1.0
 axes location off
+rotate y by 90
