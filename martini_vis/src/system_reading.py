@@ -23,6 +23,7 @@ def secondary_structure_parsing(lines, molname):
         else:
             break
 
+    ss_string = ''
     # this should get the code
     for line in header:
         if line.upper() == line:
