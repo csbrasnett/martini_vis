@@ -1,6 +1,6 @@
 # Depreciation
 
-The development of this tool has been moved to the Martini Force Field Initiative: [MartiniGlass]([url](https://github.com/Martini-Force-Field-Initiative/MartiniGlass)). 
+The development of this tool has been moved to the Martini Force Field Initiative: [MartiniGlass](https://github.com/Martini-Force-Field-Initiative/MartiniGlass). 
 
 
 
