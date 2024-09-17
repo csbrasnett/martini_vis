@@ -1,3 +1,9 @@
+# Depreciation
+
+The development of this tool has been moved to the Martini Force Field Initiative: [MartiniGlass]([url](https://github.com/Martini-Force-Field-Initiative/MartiniGlass)). 
+
+
+
 # martini_vis
 ![Martinizing a protein (Ubiquitin, PBD: 1UBQ) and visualising its elastic network.
 left to right: atomistic representation of the protein. 
